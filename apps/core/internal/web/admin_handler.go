@@ -73,6 +73,11 @@ func (h *Handler) APIActiveTasks(c *fiber.Ctx) error {
 
 // API: Get pending HITL count
 func (h *Handler) APIPendingHITL(c *fiber.Ctx) error {
+	// Check if HTMX request - return partial
+	if c.Get("HX-Request") == "true" {
+		// Return HTMX partial with count badge
+		return c.SendString(`<span class="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">0</span>`)
+	}
 	// TODO: Get from Redis
 	return c.SendString("0")
 }
@@ -175,6 +180,21 @@ func (h *Handler) APIAgentStatus(c *fiber.Ctx) error {
 
 // API: Get HITL queue
 func (h *Handler) APIHITLQueue(c *fiber.Ctx) error {
+	// Check if HTMX request - return partial
+	if c.Get("HX-Request") == "true" {
+		// Return HTMX partial with table rows
+		html := `<tr class="hover:bg-gray-50" hx-get="/api/hitl/1/details" hx-trigger="click" hx-target="#hitl-detail">
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">HITL-001</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Burn rate alert</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2h ago</td>
+			<td class="px-6 py-4 whitespace-nowrap">
+				<button hx-post="/api/hitl/1/approve" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" class="text-green-600 hover:text-green-900 mr-3">Approve</button>
+				<button hx-post="/api/hitl/1/reject" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" class="text-red-600 hover:text-red-900">Dismiss</button>
+			</td>
+		</tr>`
+		return c.SendString(html)
+	}
+	// Return full page for non-HTMX
 	html := `<div class="p-8 text-center text-gray-500">No items awaiting approval</div>`
 	return c.SendString(html)
 }
@@ -182,14 +202,24 @@ func (h *Handler) APIHITLQueue(c *fiber.Ctx) error {
 // API: Approve HITL item
 func (h *Handler) APIHITLApprove(c *fiber.Ctx) error {
 	taskID := c.Params("id")
-	// TODO: Process approval
+	// Check if HTMX request - return partial for swap
+	if c.Get("HX-Request") == "true" {
+		// Return empty to remove row from view
+		return c.SendString("")
+	}
+	// Return full page for non-HTMX
 	return c.SendString(fmt.Sprintf(`<div class="p-4 bg-green-50 text-green-800">Approved %s</div>`, taskID))
 }
 
 // API: Reject HITL item
 func (h *Handler) APIHITLReject(c *fiber.Ctx) error {
 	taskID := c.Params("id")
-	// TODO: Process rejection
+	// Check if HTMX request - return partial for swap
+	if c.Get("HX-Request") == "true" {
+		// Return empty to remove row from view
+		return c.SendString("")
+	}
+	// Return full page for non-HTMX
 	return c.SendString(fmt.Sprintf(`<div class="p-4 bg-red-50 text-red-800">Rejected %s</div>`, taskID))
 }
 

@@ -47,10 +47,15 @@ This is the **Master Plan** for **IterateSwarm** - A Production-Grade Polyglot C
 | **Service Communication** | gRPC + Protocol Buffers | Type-safe polyglot IPC |
 | **Vector DB** | Qdrant | Semantic duplicate detection |
 | **Event Bus** | Redpanda | Kafka-compatible message buffer |
+<<<<<<< Updated upstream
 | **Primary DB** | PostgreSQL | Auth, Idempotency, Agent Context, Token Budget, HITL Queue, DLQ, Audit Log |
 | **Authentication** | JWT + GitHub OAuth | Stateless auth with GitHub OAuth |
 | **Admin Dashboard** | Go + HTMX | Server-side rendered real-time UI |
 | **Interface** | Discord | ChatOps (Block Kit buttons) |
+=======
+| **Primary DB** | PostgreSQL | App data persistence |
+| **Interface** | Discord | ChatOps (Message Components / buttons) |
+>>>>>>> Stashed changes
 | **Code Generation** | Buf | Protocol buffer compilation |
 
 ### **High-Level Data Flow**
@@ -292,7 +297,7 @@ iterate_swarm/
 
 ### **Unit Tests**
 - **Go:** `go test ./...` (9 tests passing)
-- **Python:** `uv run pytest tests/` (47 tests passing)
+- **Python:** `uv run pytest tests/` (36 tests passing)
 
 ### **Integration Tests**
 - Temporal worker connectivity

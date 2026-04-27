@@ -48,7 +48,7 @@ IterateSwarm is a **polyglot, event-driven ChatOps platform** that transforms un
 │              │  ┌───────────────────────────┐  │                               │
 │              │  │  Temporal Orchestrator   │  │                               │
 │              │  │  - Workflow definition   │  │                               │
-│              │  │  - Activity coordination│  │                               │
+│              │  │  - Activity coordination │  │                               │
 │              │  └───────────────────────────┘  │                               │
 │              └─────────────────────────────────┘                               │
 │                              │                                                 │

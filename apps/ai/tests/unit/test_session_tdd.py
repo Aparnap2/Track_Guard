@@ -4,6 +4,7 @@ Write failing tests FIRST, then implement code to pass them.
 """
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
+from datetime import datetime, UTC
 
 
 class TestRelevanceGate:
@@ -50,7 +51,7 @@ class TestRelevanceGate:
         # Create mission with active alert
         mission = MissionState(
             tenant_id="test",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             burn_alert=True,
             active_alerts=["FG-01"],
         )
@@ -70,7 +71,7 @@ class TestMissionState:
         
         mission = MissionState(
             tenant_id="test-tenant",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
         )
         
         assert mission.tenant_id == "test-tenant"
@@ -85,7 +86,7 @@ class TestMissionState:
         
         mission = MissionState(
             tenant_id="test",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             runway_days=90,
             burn_alert=True,
             burn_severity="critical",

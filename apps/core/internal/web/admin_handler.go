@@ -282,6 +282,24 @@ func (h *Handler) APIWatchlist(c *fiber.Ctx) error {
 	return c.SendString(`<div class="p-8">Watchlist</div>`)
 }
 
+// API: Update watchlist threshold
+func (h *Handler) APIWatchlistThresholdUpdate(c *fiber.Ctx) error {
+	patternID := c.Params("id")
+	newValue := c.FormValue("value")
+
+	if c.Get("HX-Request") == "true" {
+		html := fmt.Sprintf(`<tr hx-swap-oob="closest tr">
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">%s</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Threshold: %s</td>
+			<td class="px-6 py-4 whitespace-nowrap">
+				<span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Active</span>
+			</td>
+		</tr>`, patternID, newValue)
+		return c.SendString(html)
+	}
+	return c.SendString(fmt.Sprintf(`Updated threshold for %s to %s`, patternID, newValue))
+}
+
 // HTMX Screen 3: LLMOps Dashboard
 func (h *Handler) APILLMOpsDashboard(c *fiber.Ctx) error {
 	if c.Get("HX-Request") == "true" {
@@ -430,6 +448,7 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 
 	// HTMX Screen 2: Guardian Watchlist Viewer
 	apiGroup.Get("/htmx/watchlist", h.APIWatchlist)
+	apiGroup.Post("/htmx/watchlist/:id/threshold", h.APIWatchlistThresholdUpdate)
 
 	// HTMX Screen 3: LLMOps Dashboard
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)

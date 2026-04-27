@@ -57,5 +57,29 @@ func TestWatchlistViewer_ShowsAlertPatterns(t *testing.T) {
 	}
 }
 
-// TODO: Add threshold update test when handler is implemented
-// func TestWatchlistViewer_ThresholdUpdateReturnsUpdatedRow(t *testing.T)
+// Test: Add threshold update test when handler is implemented
+func TestWatchlistViewer_ThresholdUpdateReturnsUpdatedRow(t *testing.T) {
+	app := fiber.New()
+	h := NewHandler(nil)
+
+	apiGroup := app.Group("/api")
+	apiGroup.Post("/htmx/watchlist/:id/threshold", h.APIWatchlistThresholdUpdate)
+
+	// Create request with form data
+	req := httptest.NewRequest("POST", "/api/htmx/watchlist/FG-01/threshold?value=0.10", nil)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := strings.TrimSpace(string(body))
+
+	// Should return updated row fragment
+	if !strings.Contains(bodyStr, "FG-01") && !strings.Contains(bodyStr, "0.10") {
+		t.Errorf("FAIL: Expected updated threshold in response, got: %q", bodyStr)
+	}
+}

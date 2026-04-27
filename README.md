@@ -4,10 +4,9 @@
 > detects 17 seed-stage failure patterns, and delivers contextual guardian insights
 > to founders before problems become crises.
 
-**[![Tests](https://img.shields.io/badge/tests-241%20passing-brightgreen)](apps/ai/tests/)**
-**[![Patterns](https://img.shields.io/badge/guardian-17%20watchlist%20patterns-blue)](apps/ai/src/guardian/watchlist.py)**
-**[![Agents](https://img.shields.io/badge/agents-8%20(LangGraph)-purple)](apps/ai/src/agents/)**
-**[![Workflows](https://img.shields.io/badge/workflows-9%20(Temporal)-orange)](apps/ai/src/workflows/)**
+**[![Tests](https://img.shields.io/badge/tests-104%20passing-brightgreen)](#)**
+**[![Architecture](https://img.shields.io/badge/distributed-Redpanda%20event%20bus-blue)](#)**
+**[![HTMX](https://img.shields.io/badge/HTMX-4%20ops%20screens-purple)](#)**
 
 ---
 
@@ -19,17 +18,15 @@ Sarthi watches a SaaS founder's business continuously — Stripe revenue, bank b
 
 ---
 
-## Sarthi V3.0 — Chief of Staff (New!)
+## Sarthi V3.0 — Distributed Microservices (Updated!)
 
-Sarthi now includes **Chief of Staff capabilities** for proactive founder support:
-
-| Feature | Description |
-|---------|-------------|
-| **Decision Journal** | Log decisions via Slack modal, search past decisions via semantic memory |
-| **Weekly Synthesis** | Monday morning brief combining metrics, alerts, decisions, investor status |
-| **Investor Relations** | Track investor relationships, warmup alerts, interaction history |
-| **CommsTriage** | Daily Slack channel triage — classify messages by urgency/action items |
-| **HiringAgent** | Score candidates, track pipeline, cold candidate alerts |
+| Component | Technology | Status |
+|----------|-----------|--------|
+| **Go Gateway** | Fiber + HTMX | ✅ |
+| **Python Worker** | LangGraph + LLM | ✅ |
+| **Event Bus** | Redpanda (Kafka-compat) | ✅ |
+| **HTMX Screens** | Onboarding, Watchlist, LLMOps, HITL | ✅ |
+| **Graceful Degradation** | No Temporal/Kafka required | ✅ |
 
 ---
 

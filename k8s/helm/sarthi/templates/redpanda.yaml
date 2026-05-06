@@ -1,0 +1,79 @@
+{{- if .Values.redpanda.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  type: ClusterIP
+  ports:
+    - name: redpanda
+      port: 9092
+      targetPort: 9092
+    - name: redpanda-proxy
+      port: 8081
+      targetPort: 8081
+    - name: schema-registry
+      port: 8082
+      targetPort: 8082
+  selector:
+    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redpanda
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: {{ .Values.redpanda.image.registry }}/{{ .Values.redpanda.image.repository }}:{{ .Values.redpanda.image.tag }}
+          command:
+            - redpanda
+            - start
+            - --smp
+            - "1"
+            - --overprovisioned
+            - --advertise-rpk-setter=redpanda:9092
+          ports:
+            - name: redpanda
+              containerPort: 9092
+            - name: redpanda-proxy
+              containerPort: 8081
+            - name: schema-registry
+              containerPort: 8082
+          {{- with .Values.redpanda }}
+          resources:
+            {{- toYaml .resources | nindent 14 }}
+          {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      restartPolicy: Always
+---
+{{- end -}}

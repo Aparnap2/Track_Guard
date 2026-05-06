@@ -1,0 +1,86 @@
+{{- if .Values.workflowService.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.workflowService.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: workflow-service
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-service
+spec:
+  replicas: {{ .Values.workflowService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-service
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: workflow-service
+    spec:
+      containers:
+        - name: workflow-service
+          image: {{ .Values.workflowService.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.workflowService.port }}
+              protocol: TCP
+          {{- with .Values.workflowService.health }}
+          livenessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.workflowService.resources | nindent 12 }}
+          env:
+            - name: PORT
+              value: "{{ .Values.workflowService.port }}"
+            - name: OTEL_SERVICE_NAME
+              value: "workflow-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            - name: TEMPORAL_ADDRESS
+              value: "temporal:7233"
+              optional: true
+            - name: TEMPORAL_NAMESPACE
+              value: "default"
+              optional: true
+      restartPolicy: Always
+---
+{{- end -}}

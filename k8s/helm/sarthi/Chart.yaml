@@ -1,0 +1,14 @@
+apiVersion: v2
+name: sarthi
+description: IterateSwarm Helm Umbrella Chart - All-in-one deployment for k3d
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - iterate-swarm
+  - chatops
+  - ai-agents
+  - temporal
+maintainers:
+  - name: IterateSwarm Team
+    email: team@iterateswarm.ai

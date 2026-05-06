@@ -1,0 +1,87 @@
+{{- if .Values.postgres.enabled -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sarthi-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  uri: "postgres://sarthi:sarthi_dev_password@postgres:5432/sarthi"
+  username: "sarthi"
+  password: "sarthi_dev_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgresql
+      protocol: TCP
+      name: postgresql
+  selector:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          {{- with .Values.postgres.primary }}
+          resources:
+            {{- toYaml .resources | nindent 14 }}
+          {{- end }}
+          env:
+            - name: POSTGRES_DB
+              value: "sarthi"
+            - name: POSTGRES_USER
+              value: "sarthi"
+            - name: POSTGRES_PASSWORD
+              value: "sarthi_dev_password"
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - sarthi
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      restartPolicy: Always
+---
+{{- end -}}

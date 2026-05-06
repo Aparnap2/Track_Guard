@@ -1,0 +1,158 @@
+{{- if .Values.otelCollector.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: jaeger-http
+      port: 14268
+      targetPort: 14268
+      protocol: TCP
+    - name: jaeger-grpc
+      port: 14250
+      targetPort: 14250
+      protocol: TCP
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector:0.127.0
+          command:
+            - /otelcol
+            - --config=/conf/otel-collector-config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: jaeger-http
+              containerPort: 14268
+              protocol: TCP
+            - name: jaeger-grpc
+              containerPort: 14250
+              protocol: TCP
+            - name: zipkin
+              containerPort: 9411
+              protocol: TCP
+          volumeMounts:
+            - name: otel-config
+              mountPath: /conf
+          {{- with .Values.otelCollector }}
+          resources:
+            {{- toYaml .resources | nindent 14 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: otel-config
+          configMap:
+            name: otel-collector-config
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      jaeger:
+        protocols:
+          thrift_http:
+            endpoint: 0.0.0.0:14268
+          grpc:
+            endpoint: 0.0.0.0:14250
+      zipkin:
+        endpoint: 0.0.0.0:9411
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1000
+      memory_limiter:
+        limit_mib: 256
+        check_interval: 1s
+    exporters:
+      otlp:
+        endpoint: "http://jaeger:14250"
+        tls:
+          insecure: true
+      logging:
+        loglevel: debug
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp, jaeger, zipkin]
+          processors: [batch, memory_limiter]
+          exporters: [otlp, logging]
+        metrics:
+          receivers: [otlp]
+          processors: [batch, memory_limiter]
+          exporters: [otlp, logging]
+        logs:
+          receivers: [otlp]
+          processors: [batch, memory_limiter]
+          exporters: [otlp, logging]
+---
+{{- end -}}

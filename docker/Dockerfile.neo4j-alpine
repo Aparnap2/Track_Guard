@@ -1,0 +1,14 @@
+FROM neo4j:5.18-community AS builder
+
+FROM alpine:3.19
+
+RUN apk add --no-cache openjdk17-jre-headless bash curl
+
+COPY --from=builder /var/lib/neo4j /var/lib/neo4j
+
+ENV NEO4J_HOME=/var/lib/neo4j \
+    NEO4J_AUTH=neo4j/password
+
+EXPOSE 7474 7687
+
+CMD ["/var/lib/neo4j/bin/neo4j", "console"]

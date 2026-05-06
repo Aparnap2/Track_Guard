@@ -15,6 +15,7 @@ volumes:
   redis_data:
   qdrant_data:
   jaeger_data:
+  neo4j_data:
 
 services:
   # ── PostgreSQL — Structured Data ─────────────────────────
@@ -92,7 +93,7 @@ services:
 
   # ── OTel Collector — Tracing Pipeline ────────────────────────
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector:0.100.0
     container_name: sarthi-otel-collector
     restart: unless-stopped
     networks: [sarthi-v3]
@@ -106,9 +107,34 @@ services:
     depends_on:
       - jaeger
 
+  # ── Neo4j — Semantic Memory (Graph) ─────────────────────────
+  neo4j:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.neo4j-alpine
+    container_name: sarthi-neo4j
+    restart: unless-stopped
+    networks: [sarthi-v3]
+    volumes:
+      - neo4j_data:/data
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_dbms_memory_heap_initial__size=256m
+      - NEO4J_dbms_memory_heap_max__size=512m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Jaeger — Tracing Backend ─────────────────────────────
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.jaeger-alpine
     container_name: sarthi-jaeger
     restart: unless-stopped
     networks: [sarthi-v3]

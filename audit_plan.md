@@ -59,30 +59,39 @@ This audit maps the existing codebase to the 5 target microservices defined in t
 
 ---
 
-### 3. Memory Service (Python) ⚠️ Semantic Decision Unsettled
+### 3. Memory Service (Python) 🔒 LOCKED: Neo4j + Graphiti
 
 **Current State:** `src/memory/` - 5-layer architecture
 
 | Capability | Status | Location |
 |------------|--------|----------|
 | Qdrant vector memory | ✅ | `src/memory/qdrant_ops.py` |
-| Neo4j/Graphiti semantic | ⚠️ | `src/memory/semantic.py` - fallback ready |
-| Kuzu (embedded) | ❌ | Not in current code |
+| **Neo4j + Graphiti** | 🔒 **LOCKED** | `src/memory/semantic.py` |
 | PostgreSQL session/mission | ✅ | `src/session/context.py`, `mission_state.py` |
 | Redis working memory | ✅ | `src/memory/working.py` |
 | Redis Streams event bus | ✅ | `src/events/bus.py` |
 | Tenant isolation | ✅ | All layers enforce tenant_id |
 | Graceful fallback | ✅ | Returns empty on unavailability |
 
-**Critical Decision Needed:**
-- **PRD says:** Kuzu replaced Neo4j as embedded semantic layer
-- **Coding instructions say:** Keep/restore Graphiti + Neo4j because Kuzu cannot model episodic temporal edges
-- **Current code:** Has Neo4j fallback, no Kuzu implementation
+**🔒 Semantic Memory Decision Locked:**
 
-**Recommendation for Production-sim (k3d):** Neo4j/Graphiti
-**Recommendation for Lean Local Mode:** Fallback to simplified storage
+| Mode | Technology | Config |
+|------|------------|--------|
+| **k3d Production-sim** | Neo4j 5.22+ + Graphiti | `NEO4J_URI=bolt://neo4j:7687` |
+| **Lean Local Mode** | Fallback to Qdrant/Redis | When Neo4j unavailable |
 
-**Readiness: 75%** - Strong internals, but semantic-store decision and service boundary are unsettled.
+**Graphiti + Neo4j Setup (from Context7):**
+```python
+from graphiti_core import Graphiti
+
+client = Graphiti(
+    neo4j_uri="bolt://localhost:7687",
+    neo4j_user="neo4j",
+    neo4j_password="password",
+)
+```
+
+**Readiness: 75%** - Strong internals, semantic-store now locked to Neo4j/Graphiti.
 
 ---
 
@@ -131,16 +140,27 @@ This audit maps the existing codebase to the 5 target microservices defined in t
 
 ---
 
-## Semantic Memory Decision
+## Semantic Memory Decision 🔒 LOCKED
 
-**Recommendation for this project:**
+**Decision:** Neo4j + Graphiti for k3d production-sim path.
 
 | Mode | Technology | Rationale |
 |------|------------|-----------|
-| **k3d Production-sim** | Neo4j + Graphiti | Stronger portfolio signal, temporal graph capability, better interview story |
-| **Lean Local Mode** | Fallback to simplified storage | For daily development on 16GB machine |
+| **k3d Production-sim** | Neo4j 5.22+ + Graphiti | Temporal graph, episodic edges, better interview story |
+| **Lean Local Mode** | Fallback to Qdrant + Redis | For daily development on 16GB machine |
 
-This aligns with the coding prompt: "Keep and/or restore these architectural choices: ... Neo4j for vector memory."
+This aligns with Context7 documentation and coding prompt: "Keep and/or restore these architectural choices: ... Neo4j for vector memory."
+
+**Graphiti Configuration:**
+```yaml
+# docker-compose.v3.yml addition
+graphiti:
+  image: zepai/graphiti:latest
+  environment:
+    - NEO4J_URI=bolt://neo4j:7687
+    - NEO4J_USER=neo4j
+    - NEO4J_PASSWORD=sarthi
+```
 
 ---
 

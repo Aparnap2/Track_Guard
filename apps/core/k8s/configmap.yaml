@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  labels:
+    app: api-gateway
+    component: server
+metadata:
+  annotations:
+    description: "Non-secret configuration for API Gateway service"
+data:
+  # Service configuration
+  PORT: "3000"
+  REDPANDA_BROKERS: "redpanda:9092"
+  TEMPORAL_ADDR: "temporal:7233"
+  TEMPORAL_NAMESPACE: "default"
+
+  # Slack Bot fallback URL (internal service)
+  SLACK_BOT_URL: "http://slackbot:3001"
+
+  # Environment modes
+  DEV_MODE: "false"
+  TEST_MODE: "false"
+
+  # Health check paths (for reference)
+  HEALTH_PATH: "/health"
+  HEALTH_DETAILS_PATH: "/health/details"

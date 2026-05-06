@@ -1,0 +1,31 @@
+# decision-engine/Dockerfile.alpine
+# Guardian watchlist, HITL routing service
+# Uses: guardian.watchlist, guardian.detector, guardian.insight_builder
+# Resource limits: CPU 500m, Memory 512Mi
+
+# Stage 1: Builder
+FROM python:3.11-alpine AS builder
+RUN apk add --no-cache uv
+WORKDIR /app
+
+# Install minimal dependencies for decision-engine (no torch/sentence-transformers)
+RUN uv venv /app/.venv && \
+    uv pip install --system --no-cache \
+    pydantic>=2.0.0 \
+    structlog>=25.0.0 \
+    httpx>=0.28.0 \
+    psycopg2-binary>=2.9.0
+
+# Stage 2: Runtime  
+FROM python:3.11-alpine
+RUN apk add --no-cache ca-certificates libpq
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app
+
+# Copy service-specific source modules
+COPY src/guardian/ src/guardian/
+COPY src/db/ src/db/
+COPY src/schemas/ src/schemas/
+
+CMD ["python", "-c", "from src.guardian import watchlist"]

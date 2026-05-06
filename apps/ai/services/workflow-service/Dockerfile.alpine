@@ -1,0 +1,35 @@
+# workflow-service/Dockerfile.alpine
+# Temporal worker, workflow execution service
+# Uses: temporalio, workflows
+# Resource limits: CPU 1000m, Memory 1Gi
+# Note: Uses slim base due to temporalio native dependencies
+
+# Stage 1: Builder
+FROM python:3.11-slim AS builder
+RUN pip install uv
+WORKDIR /app
+
+# Install minimal dependencies for workflow-service
+RUN uv venv /app/.venv && \
+    uv pip install --system --no-cache \
+    temporalio>=1.11.0 \
+    pydantic>=2.0.0 \
+    structlog>=25.0.0 \
+    httpx>=0.28.0 \
+    psycopg2-binary>=2.9.0
+
+# Stage 2: Runtime  
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app
+
+# Copy service-specific source modules
+COPY src/workflows/ src/workflows/
+COPY src/agents/ src/agents/
+COPY src/worker.py src/worker.py
+
+CMD ["python", "-c", "from src.worker import main"]

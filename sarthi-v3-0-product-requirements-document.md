@@ -1010,6 +1010,107 @@ RULE 5: Tenant isolation is absolute.
 
 ---
 
+## 27. Dual-Path Demo Strategy
+
+Sarthi V3.0 supports two distinct demonstration paths — one for **live interviews** and one for **portfolio showcase**.
+
+### Path 1: Production (Azure Free Tier)
+
+The primary path documented throughout this PRD. Deploys to Azure Container Apps with:
+
+- 14 Azure services on free tier (₹0/month infrastructure)
+- APScheduler persisted to PostgreSQL
+- Graphiti episodic memory to Neo4j
+- OpenAI API (~$0.18/month for 3 tenants)
+
+**Use case:** Production deployment, real-time operation.
+
+### Path 2: Local Showcase (k3d/Helm)
+
+For portfolio demonstrations when live Azure isn't available. Uses:
+
+- **k3d** (Kubernetes in Docker) for local k8s cluster
+- **Helm charts** for all 5 services + observability stack
+- **Custom Alpine-based images** for minimal container size
+- **Temporal** (re-added) — durable workflow execution for portfolio credibility
+- **Redpanda** (re-added) — Kafka-compatible event bus
+
+**Use case:** "Show me the code" portfolio demos, technical deep-dives.
+
+| Component | Path 1 (Production) | Path 2 (Local Showcase) |
+|-----------|---------------------|------------------------|
+| Orchestration | APScheduler | APScheduler + Temporal |
+| Event Bus | Azure Event Grid | Redpanda |
+| Scheduler | APScheduler (Postgres) | APScheduler (Postgres) |
+| Demo Method | Live webhook → trace | k3d apply → kubectl port-forward |
+
+### Interview Demo: Primary Method
+
+For live interviews, **Docker Compose is the primary method**:
+
+```bash
+# 1. Bring everything up
+make up && make obs
+
+# 2. Fire a webhook
+curl -X POST http://sarthi.local/webhooks/stripe \
+  -H "Content-Type: application/json" \
+  -d '{"type":"invoice.payment_failed","tenant_id":"test-001"}'
+
+# 3. Open Jaeger — show the 5-service trace waterfall
+open http://jaeger.local
+
+# 4. Show Grafana dashboards live
+open http://grafana.local
+
+# 5. Kill decision-engine, show graceful degradation
+docker stop sarthi-decision-engine
+curl -X POST http://sarthi.local/webhooks/stripe \
+  -d '{"type":"invoice.payment_failed","tenant_id":"test-001"}'
+# Show system still responds, does not crash
+docker start sarthi-decision-engine
+```
+
+This demonstrates:
+- Real distributed tracing (opentelemetry)
+- Service resilience (graceful degradation)
+- Microservices communication patterns (webhook → worker → trace)
+- Observability stack in action (Jaeger, Grafana)
+
+### k3d: Portfolio Layer
+
+k3d is a **secondary path** — show as code, not run live:
+
+```bash
+# Build custom Alpine images
+make docker-build-alpine
+
+# Create k3d cluster
+k3d cluster create sarthi
+
+# Apply Helm charts
+helm install sarthi ./helm/sarthi
+
+# Show Kubernetes manifest depth
+kubectl get all -n sarthi
+kubectl get ingress -n sarthi
+```
+
+**k3d is documented for portfolio depth, not required for interviews.**
+
+### What Has Been Built
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| 5 microservices | ✅ Implemented | decision-engine, api-gateway, worker, observer, scheduler |
+| OTel tracing | ✅ Implemented | 5-service waterfall |
+| Custom Alpine images | ✅ Implemented | Minimal base for portfolio |
+| Helm charts | ✅ Implemented | Full k8s deployment |
+| Docker Compose | ✅ Primary | Interview demos |
+| k3d manifests | ✅ Secondary | Portfolio "show as code" |
+
+---
+
 *Built for the solo founder who has everything except the team. Sarthi gives you the team.*
 
 ---

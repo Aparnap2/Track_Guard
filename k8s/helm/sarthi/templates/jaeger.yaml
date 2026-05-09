@@ -27,7 +27,7 @@ spec:
       targetPort: 6831
       protocol: UDP
   selector:
-    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/name: sarthi
     app.kubernetes.io/instance: {{ .Release.Name }}
 ---
 apiVersion: apps/v1
@@ -42,7 +42,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/name: sarthi
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:

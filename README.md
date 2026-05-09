@@ -267,4 +267,135 @@ Sarthi detects 17 seed-stage failure patterns:
 
 ---
 
-*This is an engineering portfolio document, not a product README. It describes architecture decisions, not marketing claims. Every technology choice is explained with tradeoffs. The code is real. The data is synthetic but structurally accurate.*
+## Interview Demo (Primary — Live)
+
+This is the **primary demo method** for live interviews. Docker Compose brings up the full stack with observability.
+
+### Quick Demo Script (5 Steps)
+
+```bash
+# 1. Bring everything up
+make up && make obs
+
+# 2. Fire a webhook
+curl -X POST http://sarthi.local/webhooks/stripe \
+  -H "Content-Type: application/json" \
+  -d '{"type":"invoice.payment_failed","tenant_id":"test-001"}'
+
+# 3. Open Jaeger — show the 5-service trace waterfall
+open http://jaeger.local
+
+# 4. Show Grafana dashboards live
+open http://grafana.local
+
+# 5. Kill decision-engine, show graceful degradation
+docker stop sarthi-decision-engine
+curl -X POST http://sarthi.local/webhooks/stripe \
+  -d '{"type":"invoice.payment_failed","tenant_id":"test-001"}'
+# Show system still responds, does not crash
+docker start sarthi-decision-engine
+```
+
+### Talking Points Per Step
+
+| Step | Command | What It Proves |
+|------|---------|---------------|
+| 1 | `make up && make obs` | Real containers — 5 services, PostgreSQL, Redis, Qdrant, OpenTelemetry Collector, Jaeger, Grafana |
+| 2 | `curl -X POST ...` | Real webhook ingestion — Go Fiber routes to the right handler, event published to event bus |
+| 3 | `open http://jaeger.local` | **Distributed tracing** — the trace waterfall shows: webhook-received → event-published → worker-picked-up → llm-called → response-generated |
+| 4 | `open http://grafana.local` | **Real metrics** — Prometheus scrapping worker metrics, live dashboards |
+| 5 | `docker stop sarthi-decision-engine` | **Graceful degradation** — system returns 200, doesn't crash when one service dies |
+
+### What This Demo Proves
+
+| Microservices Skill | Demo Evidence |
+|-------------------|--------------|
+| Distributed tracing | Jaeger waterfall (5 services) |
+| Service resilience | Killed service doesn't crash the system |
+| Event-driven architecture | Webhook → event bus → worker |
+| Observability stack | Jaeger + Grafana + Prometheus |
+| Docker Compose orchestration | `make up` brings up entire stack |
+| Real data flow | Webhook payload processed end-to-end |
+
+---
+
+## Dual-Path Architecture
+
+| Path | Method | Use Case |
+|------|--------|----------|
+| **Path 1: Interview** | Docker Compose | Live demo in interviews |
+| **Path 2: Portfolio** | k3d + Helm | "Show me the code" deeper dives |
+
+### Path 2: k3d Portfolio (Secondary)
+
+k3d is documented for portfolio depth — **not required for interviews**.
+
+```bash
+# Build custom Alpine images
+make docker-build-alpine
+
+# Create k3d cluster
+k3d cluster create sarthi
+
+# Apply Helm charts
+helm install sarthi ./helm/sarthi
+
+# Show Kubernetes manifest depth
+kubectl get all -n sarthi
+kubectl get ingress -n sarthi
+```
+
+When interviewers ask "show me Kubernetes," you show:
+- Custom Alpine-based images (minimal)
+- Helm charts for all services
+- Kustomize overlays for dev/prod
+- Ingress controllers configured
+
+---
+
+## What Has Been Built (V3.0)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Go API Gateway | ✅ | Fiber + HTMX |
+| Python Worker | ✅ | LangGraph + DSPy |
+| Decision Engine | ✅ | Pydantic AI contracts |
+| Observer Service | ✅ | OTel metrics |
+| Scheduler Service | ✅ | APScheduler jobs |
+| OTel tracing | ✅ | 5-service waterfall |
+| Redpanda | ✅ | Kafka-compatible event bus |
+| Temporal | ✅ | Durable workflows (portfolio) |
+| Helm charts | ✅ | Full k8s deployment |
+| Custom Alpine images | ✅ | Minimal containers |
+
+---
+
+## Running Locally
+
+### Prerequisites
+- Docker (for PostgreSQL, Qdrant, Redpanda, Temporal containers)
+- `uv` (Python package manager)
+
+### Quick Start
+```bash
+# Start infrastructure
+make up
+
+# Run worker
+make worker
+
+# Run server (separate terminal)
+make server
+
+# Bring up observability
+make obs
+
+# Demo the webhook
+curl -X POST http://sarthi.local/webhooks/stripe \
+  -H "Content-Type: application/json" \
+  -d '{"type":"invoice.payment_failed","tenant_id":"test-001"}'
+```
+
+---
+
+*This is a production-grade portfolio. Every claim has working code. Every demo has real traces.*

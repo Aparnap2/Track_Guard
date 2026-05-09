@@ -26,8 +26,9 @@ spec:
       protocol: TCP
       name: redis
   selector:
-    app.kubernetes.io/name: redis
+    app.kubernetes.io/name: sarthi
     app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: redis
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -41,8 +42,9 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: redis
+      app.kubernetes.io/name: sarthi
       app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: redis
   template:
     metadata:
       labels:

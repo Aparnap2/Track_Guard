@@ -31,7 +31,7 @@ spec:
       targetPort: 9411
       protocol: TCP
   selector:
-    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/name: sarthi
     app.kubernetes.io/instance: {{ .Release.Name }}
 ---
 apiVersion: apps/v1
@@ -46,7 +46,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: otel-collector
+      app.kubernetes.io/name: sarthi
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:

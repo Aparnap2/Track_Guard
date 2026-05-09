@@ -15,7 +15,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: delivery-service
+    app.kubernetes.io/name: sarthi
     app.kubernetes.io/instance: {{ .Release.Name }}
 ---
 apiVersion: apps/v1
@@ -30,7 +30,7 @@ spec:
   replicas: {{ .Values.deliveryService.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: delivery-service
+      app.kubernetes.io/name: sarthi
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:

@@ -53,6 +53,7 @@ dependencies = [
     "opentelemetry-instrumentation-aiokafka>=0.52b0",
     "opentelemetry-instrumentation-redis>=0.52b0",
     "opentelemetry-instrumentation-qdrant>=0.52b0",
+    "ollama>=0.6.2",
 ]
 
 [project.optional-dependencies]

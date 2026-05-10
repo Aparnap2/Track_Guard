@@ -244,7 +244,7 @@ class TestAgentHealthChecks:
         from src.agents.finance.graph import FinanceGuardianGraph
 
         graph = FinanceGuardianGraph()
-        health = graph.health_check()
+        health = await graph.health_check()
 
         assert health["status"] == "ok"
         assert health["capability"] == "finance.runway_risk"
@@ -258,7 +258,7 @@ class TestAgentHealthChecks:
         from src.agents.bi.graph import BIAnalystGraph
 
         graph = BIAnalystGraph()
-        health = graph.health_check()
+        health = await graph.health_check()
 
         assert health["status"] == "ok"
         assert health["capability"] == "bi.user_engagement"
@@ -272,7 +272,7 @@ class TestAgentHealthChecks:
         from src.agents.ops.graph import OpsWatchGraph
 
         graph = OpsWatchGraph()
-        health = graph.health_check()
+        health = await graph.health_check()
 
         assert health["status"] == "ok"
         assert health["capability"] == "ops.health_deployment"

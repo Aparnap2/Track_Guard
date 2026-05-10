@@ -28,24 +28,25 @@ Rules flagged: runway_critical, mrr_drop
 Is this alert-worthy? Answer with JSON:
 {{"should_alert": true/false, "severity": "critical/warning/info", "primary_signal": "runway_critical/mrr_drop/none", "context_note": "max 20 words"}}"""
 
-    span = trace_context.span(name="finance_decide")
+    # Phase 2: LLM decision call with Langfuse tracing
+    # Langfuse SDK v4: use start_as_current_observation for nested spans
+    with langfuse_client.start_as_current_observation(name="finance_decide", as_type="generation") as span:
+        response = openai_client.chat.completions.create(
+            model=llm_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            response_format={"type": "json_object"},
+        )
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=100,
-        response_format={"type": "json_object"},
-    )
+        content = response.choices[0].message.content
 
-    content = response.choices[0].message.content
+        # Parse into Pydantic - this is what we're testing
+        import json
+        data = json.loads(content)
 
-    # Parse into Pydantic - this is what we're testing
-    import json
-    data = json.loads(content)
+        result = AlertDecision(**data)
 
-    result = AlertDecision(**data)
-
-    span.end(output=result.model_dump())
+        span.update(output=result.model_dump())
 
     # Schema assertions - if these fail, PARSER is wrong
     assert isinstance(result, AlertDecision), "Failed to parse into AlertDecision"
@@ -72,21 +73,21 @@ Start with pattern name, end with one action.
 Do NOT start with a number.
 Inject the numbers: 110 days, $60k, $10k"""
 
-    span = trace_context.span(name="finance_narrative")
+    # Trace narrative generation with Langfuse SDK v4
+    with langfuse_client.start_as_current_observation(name="finance_narrative", as_type="generation") as span:
+        response = openai_client.chat.completions.create(
+            model=llm_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+        )
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=300,
-    )
+        content = response.choices[0].message.content
 
-    content = response.choices[0].message.content
+        # Parse as GuardianMessage - PRD contract validation
+        # This would need more sophisticated parsing in reality
+        word_count = len(content.split())
 
-    # Parse as GuardianMessage - PRD contract validation
-    # This would need more sophisticated parsing in reality
-    word_count = len(content.split())
-
-    span.end(output={"word_count": word_count, "content": content[:100]})
+        span.update(output={"word_count": word_count, "content": content[:100]})
 
     # PRD contract assertions
     assert word_count <= 200, f"Exceeds 200 words: {word_count}"

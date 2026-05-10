@@ -355,7 +355,7 @@ async def handle_slack_message(
             - cofounder_ran: True if co-founder synthesis ran
             - error_handled: True if fallback handled an error
     """
-    from src.session.relevance_gate import relevance_gate
+    from src.session.relevance_gate import get_triggered_agents, evaluate_relevance
     from src.session.mission_state import MissionState
     from src.agents.cofounder import route_message
     from src.agents.cofounder.correlation import CorrelationAgent
@@ -380,7 +380,7 @@ async def handle_slack_message(
 
     try:
         # Step 1: Relevance gate (deterministic)
-        relevant_domains = relevance_gate(text, mission)
+        relevant_domains = get_triggered_agents(text)
 
         if not relevant_domains:
             result["blocked"] = True
@@ -392,7 +392,7 @@ async def handle_slack_message(
 
         # Step 2: Call relevant agents (Router)
         try:
-            route_result = route_message(text, mission)
+            route_result = await route_message(text, mission)
             result["destination"] = route_result.destination
         except Exception as e:
             logger.warning(f"Agent call failed: {e}")

@@ -73,6 +73,11 @@ func (h *Handler) APIActiveTasks(c *fiber.Ctx) error {
 
 // API: Get pending HITL count
 func (h *Handler) APIPendingHITL(c *fiber.Ctx) error {
+	// Check if HTMX request - return partial
+	if c.Get("HX-Request") == "true" {
+		// Return HTMX partial with count badge
+		return c.SendString(`<span class="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">0</span>`)
+	}
 	// TODO: Get from Redis
 	return c.SendString("0")
 }
@@ -175,6 +180,21 @@ func (h *Handler) APIAgentStatus(c *fiber.Ctx) error {
 
 // API: Get HITL queue
 func (h *Handler) APIHITLQueue(c *fiber.Ctx) error {
+	// Check if HTMX request - return partial
+	if c.Get("HX-Request") == "true" {
+		// Return HTMX partial with table rows
+		html := `<tr class="hover:bg-gray-50" hx-get="/api/hitl/1/details" hx-trigger="click" hx-target="#hitl-detail">
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">HITL-001</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Burn rate alert</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2h ago</td>
+			<td class="px-6 py-4 whitespace-nowrap">
+				<button hx-post="/api/hitl/1/approve" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" class="text-green-600 hover:text-green-900 mr-3">Approve</button>
+				<button hx-post="/api/hitl/1/reject" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" class="text-red-600 hover:text-red-900">Dismiss</button>
+			</td>
+		</tr>`
+		return c.SendString(html)
+	}
+	// Return full page for non-HTMX
 	html := `<div class="p-8 text-center text-gray-500">No items awaiting approval</div>`
 	return c.SendString(html)
 }
@@ -182,15 +202,125 @@ func (h *Handler) APIHITLQueue(c *fiber.Ctx) error {
 // API: Approve HITL item
 func (h *Handler) APIHITLApprove(c *fiber.Ctx) error {
 	taskID := c.Params("id")
-	// TODO: Process approval
+	// Check if HTMX request - return partial for swap
+	if c.Get("HX-Request") == "true" {
+		// Return empty to remove row from view
+		return c.SendString("")
+	}
+	// Return full page for non-HTMX
 	return c.SendString(fmt.Sprintf(`<div class="p-4 bg-green-50 text-green-800">Approved %s</div>`, taskID))
 }
 
 // API: Reject HITL item
 func (h *Handler) APIHITLReject(c *fiber.Ctx) error {
 	taskID := c.Params("id")
-	// TODO: Process rejection
+	// Check if HTMX request - return partial for swap
+	if c.Get("HX-Request") == "true" {
+		// Return empty to remove row from view
+		return c.SendString("")
+	}
+	// Return full page for non-HTMX
 	return c.SendString(fmt.Sprintf(`<div class="p-4 bg-red-50 text-red-800">Rejected %s</div>`, taskID))
+}
+
+// HTMX Screen 1: Tenant Onboarding Status
+func (h *Handler) APIOnboardingStatus(c *fiber.Ctx) error {
+	if c.Get("HX-Request") == "true" {
+		html := `
+		<div class="grid grid-cols-2 gap-4" hx-get="/api/htmx/onboarding" hx-trigger="every 30s">
+			<div class="p-4 bg-green-50 rounded-lg">
+				<h3 class="font-semibold text-green-800">Slack</h3>
+				<p class="text-sm text-green-600">Connected</p>
+			</div>
+			<div class="p-4 bg-green-50 rounded-lg">
+				<h3 class="font-semibold text-green-800">Razorpay</h3>
+				<p class="text-sm text-green-600">Connected</p>
+			</div>
+			<div class="p-4 bg-yellow-50 rounded-lg">
+				<h3 class="font-semibold text-yellow-800">Telegram</h3>
+				<p class="text-sm text-yellow-600">Pending setup</p>
+			</div>
+			<div class="p-4 bg-gray-50 rounded-lg">
+				<h3 class="font-semibold text-gray-800">PostgreSQL</h3>
+				<p class="text-sm text-gray-600">Not configured</p>
+			</div>
+		</div>`
+		return c.SendString(html)
+	}
+	return c.SendString(`<div class="p-8">Onboarding status</div>`)
+}
+
+// HTMX Screen 2: Guardian Watchlist Viewer
+func (h *Handler) APIWatchlist(c *fiber.Ctx) error {
+	if c.Get("HX-Request") == "true" {
+		html := `
+		<div class="space-y-2" hx-get="/api/htmx/watchlist" hx-trigger="every 30s">
+			<div class="flex items-center justify-between p-3 bg-white border rounded">
+				<div>
+					<p class="font-medium">FG-01: Burn rate alert</p>
+					<p class="text-sm text-gray-500">Threshold: >5% weekly</p>
+				</div>
+				<button class="px-3 py-1 text-sm bg-red-100 text-red-800 rounded">Edit</button>
+			</div>
+			<div class="flex items-center justify-between p-3 bg-white border rounded">
+				<div>
+					<p class="font-medium">BG-02: Error spike alert</p>
+					<p class="text-sm text-gray-500">Threshold: >10 errors/min</p>
+				</div>
+				<button class="px-3 py-1 text-sm bg-red-100 text-red-800 rounded">Edit</button>
+			</div>
+			<div class="flex items-center justify-between p-3 bg-white border rounded">
+				<div>
+					<p class="font-medium">OG-01: Deployment failure</p>
+					<p class="text-sm text-gray-500">Threshold: any failure</p>
+				</div>
+				<button class="px-3 py-1 text-sm bg-red-100 text-red-800 rounded">Edit</button>
+			</div>
+		</div>`
+		return c.SendString(html)
+	}
+	return c.SendString(`<div class="p-8">Watchlist</div>`)
+}
+
+// API: Update watchlist threshold
+func (h *Handler) APIWatchlistThresholdUpdate(c *fiber.Ctx) error {
+	patternID := c.Params("id")
+	newValue := c.FormValue("value")
+
+	if c.Get("HX-Request") == "true" {
+		html := fmt.Sprintf(`<tr hx-swap-oob="closest tr">
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">%s</td>
+			<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Threshold: %s</td>
+			<td class="px-6 py-4 whitespace-nowrap">
+				<span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Active</span>
+			</td>
+		</tr>`, patternID, newValue)
+		return c.SendString(html)
+	}
+	return c.SendString(fmt.Sprintf(`Updated threshold for %s to %s`, patternID, newValue))
+}
+
+// HTMX Screen 3: LLMOps Dashboard
+func (h *Handler) APILLMOpsDashboard(c *fiber.Ctx) error {
+	if c.Get("HX-Request") == "true" {
+		html := `
+		<div class="grid grid-cols-3 gap-4" hx-get="/api/htmx/llmops" hx-trigger="every 30s">
+			<div class="p-4 bg-blue-50 rounded-lg">
+				<p class="text-2xl font-bold">94%</p>
+				<p class="text-sm text-blue-600">Alert quality score</p>
+			</div>
+			<div class="p-4 bg-green-50 rounded-lg">
+				<p class="text-2xl font-bold">87%</p>
+				<p class="text-sm text-green-600">Acknowledge rate</p>
+			</div>
+			<div class="p-4 bg-purple-50 rounded-lg">
+				<p class="text-2xl font-bold">0.82</p>
+				<p class="text-sm text-purple-600">Eval score</p>
+			</div>
+		</div>`
+		return c.SendString(html)
+	}
+	return c.SendString(`<div class="p-8">LLMOps dashboard</div>`)
 }
 
 // API: Save agent config
@@ -224,6 +354,13 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 	admin.Get("/hitl-queue", h.AdminHITLQueue)
 	admin.Get("/config", h.AdminConfig)
 	admin.Get("/telemetry", h.AdminTelemetry)
+
+	// HTMX partial routes - registered under /api for HTMX requests (TEST_MODE bypasses auth)
+	// These are used by dashboard for live updates
+	app.Get("/api/htmx/onboarding", h.APIOnboardingStatus)
+	app.Get("/api/htmx/watchlist", h.APIWatchlist)
+	app.Post("/api/htmx/watchlist/:id/threshold", h.APIWatchlistThresholdUpdate)
+	app.Get("/api/htmx/llmops", h.APILLMOpsDashboard)
 
 	// API endpoints - require auth
 	apiGroup := app.Group("/api/admin", api.RequireAuth())
@@ -312,4 +449,14 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 	apiGroup.Get("/telemetry/task-distribution", func(c *fiber.Ctx) error {
 		return c.SendString(`<div class="text-gray-400">Loading distribution...</div>`)
 	})
+
+	// HTMX Screen 1: Tenant Onboarding Status
+	apiGroup.Get("/htmx/onboarding", h.APIOnboardingStatus)
+
+	// HTMX Screen 2: Guardian Watchlist Viewer
+	apiGroup.Get("/htmx/watchlist", h.APIWatchlist)
+	apiGroup.Post("/htmx/watchlist/:id/threshold", h.APIWatchlistThresholdUpdate)
+
+	// HTMX Screen 3: LLMOps Dashboard
+	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)
 }

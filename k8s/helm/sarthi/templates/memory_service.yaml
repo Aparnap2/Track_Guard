@@ -1,0 +1,86 @@
+{{- if .Values.memoryService.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: memory-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.memoryService.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: sarthi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: memory-service
+spec:
+  replicas: {{ .Values.memoryService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sarthi
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: memory-service
+    spec:
+      containers:
+        - name: memory-service
+          image: {{ .Values.memoryService.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.memoryService.port }}
+              protocol: TCP
+          {{- with .Values.memoryService.health }}
+          livenessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.memoryService.resources | nindent 12 }}
+          env:
+            - name: PORT
+              value: "{{ .Values.memoryService.port }}"
+            - name: OTEL_SERVICE_NAME
+              value: "memory-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+              optional: true
+            - name: REDIS_URL
+              value: "redis://:6379"
+              optional: true
+      restartPolicy: Always
+---
+{{- end -}}

@@ -1,0 +1,94 @@
+{{- if .Values.jaeger.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - name: collector-http
+      port: 14268
+      targetPort: 14268
+      protocol: TCP
+    - name: collector-grpc
+      port: 14250
+      targetPort: 14250
+      protocol: TCP
+    - name: query-http
+      port: 16686
+      targetPort: 16686
+      protocol: TCP
+    - name: agent
+      port: 6831
+      targetPort: 6831
+      protocol: UDP
+  selector:
+    app.kubernetes.io/name: sarthi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sarthi
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.60
+          ports:
+            - name: collector-http
+              containerPort: 14268
+              protocol: TCP
+            - name: collector-grpc
+              containerPort: 14250
+              protocol: TCP
+            - name: query-http
+              containerPort: 16686
+              protocol: TCP
+            - name: agent
+              containerPort: 6831
+              protocol: UDP
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+            - name: SPAN_STORAGE_TYPE
+              value: "badger"
+            - name: BADGER_EPHEMERAL
+              value: "true"
+          {{- with .Values.jaeger.collector }}
+          resources:
+            {{- toYaml .resources | nindent 14 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      restartPolicy: Always
+---
+{{- end -}}

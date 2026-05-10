@@ -1,0 +1,83 @@
+{{- if .Values.deliveryService.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: delivery-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: delivery-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.deliveryService.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: sarthi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: delivery-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sarthi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: delivery-service
+spec:
+  replicas: {{ .Values.deliveryService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sarthi
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "sarthi.labels" . | nindent 8 }}
+        app.kubernetes.io/component: delivery-service
+    spec:
+      containers:
+        - name: delivery-service
+          image: {{ .Values.deliveryService.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.deliveryService.port }}
+              protocol: TCP
+          {{- with .Values.deliveryService.health }}
+          livenessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: {{ .port }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.deliveryService.resources | nindent 12 }}
+          env:
+            - name: PORT
+              value: "{{ .Values.deliveryService.port }}"
+            - name: OTEL_SERVICE_NAME
+              value: "delivery-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            - name: REDPANDA_BROKERS
+              value: "redpanda:9092"
+              optional: true
+      restartPolicy: Always
+---
+{{- end -}}

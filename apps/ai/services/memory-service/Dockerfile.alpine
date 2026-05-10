@@ -1,0 +1,32 @@
+# memory-service/Dockerfile.alpine
+# Qdrant, PostgreSQL, Redis memory service
+# Uses: memory.semantic, memory.qdrant_ops, memory.episodic
+# Resource limits: CPU 1000m, Memory 1Gi
+
+# Stage 1: Builder
+FROM python:3.11-alpine AS builder
+RUN apk add --no-cache uv
+WORKDIR /app
+
+# Install minimal dependencies for memory-service (no torch/sentence-transformers)
+RUN uv venv /app/.venv && \
+    uv pip install --system --no-cache \
+    pydantic>=2.0.0 \
+    structlog>=25.0.0 \
+    httpx>=0.28.0 \
+    qdrant-client>=1.16.0 \
+    redis>=5.0.0 \
+    psycopg2-binary>=2.9.0
+
+# Stage 2: Runtime  
+FROM python:3.11-alpine
+RUN apk add --no-cache ca-certificates libpq
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app
+
+# Copy service-specific source modules
+COPY src/memory/ src/memory/
+COPY src/db/ src/db/
+
+CMD ["python", "-c", "from src.memory import qdrant_ops"]

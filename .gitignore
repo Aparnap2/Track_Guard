@@ -92,16 +92,31 @@ yarn-error.log*
 .pnpm-store/
 
 # ===============================
-# Temporary
+# Documentation (archive old reports locally, don't commit)
 # ===============================
-*.tmp
-*.temp
-tmp/
-temp/
-# Generated protobuf modules
-gen/*/go.mod
-*.env
-.env
+docs/archive/
+docs/*_REPORT.md
+docs/*_ANALYSIS.md
+docs/*_SUMMARY.md
+docs/*_BRIEF.md
+docs/*_PLAN.md
+docs/*_AUDIT.md
+docs/*_NOTES.md
+docs/*_HANDOFF.md
+docs/SOP_*.md
+docs/V4_*.md
+docs/PHASES*.md
+docs/PIVOT_*.md
+docs/SAFE_*.md
+docs/GAP_*.md
+docs/INTERNAL_*.md
+docs/CODE_REUSE_*.md
+docs/MOCKOON_*.md
+docs/LLM_*.md
+docs/E2E_*.md
+docs/FULLSTACK_*.md
+docs/TESTING_*.md
+docs/PRD_*.md
 .env.*
 !*.env.example
 apps/core/cmd/test_azure/
@@ -150,6 +165,7 @@ apps/*/server
 apps/core/bin/
 *.so
 *.dylib
+gen/
 
 # ===============================
 # Test Artifacts

@@ -1,0 +1,119 @@
+{
+  "uuid": "sarthi-test-env",
+  "name": "Sarthi Slackbot Test Environment",
+  "version": "2.0.0",
+  "port": 3333,
+  "routes": [
+    {
+      "uuid": "slack-events-webhook",
+      "documentation": "Slack Events API webhook receiver for URL verification and message events",
+      "method": "post",
+      "endpoint": "/slack/events",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "events-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{{json (case (jsonPath 'type' body) 'url_verification' (ternary (responseFromTemplate '{}' (object 'ok' true 'challenge' (jsonPath 'challenge' body))) (object 'ok' true)) 'type')}}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "chat-postmessage",
+      "documentation": "Slack chat.postMessage API for sending messages to channels",
+      "method": "post",
+      "endpoint": "/api/chat.postMessage",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "postmessage-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"channel\": \"{{jsonPath 'channel' body}}\",\n  \"ts\": \"1234567890.123456\",\n  \"message\": {\n    \"type\": \"message\",\n    \"channel\": \"{{jsonPath 'channel' body}}\",\n    \"user\": \"U0000000\",\n    \"text\": \"{{jsonPath 'text' body}}\",\n    \"ts\": \"1234567890.123456\"\n  }\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "conversations-history",
+      "documentation": "Slack conversations.history API for fetching message history",
+      "method": "get",
+      "endpoint": "/api/conversations.history",
+      "response": {
+        "uuid": "history-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"has_more\": false,\n  \"messages\": [\n    {\n      \"type\": \"message\",\n      \"channel\": \"C123456789\",\n      \"user\": \"U0000001\",\n      \"text\": \"Hello from test user\",\n      \"ts\": \"1234567890.000001\",\n      \"thread_ts\": null\n    },\n    {\n      \"type\": \"message\",\n      \"channel\": \"C123456789\",\n      \"user\": \"U0000002\",\n      \"text\": \"Another test message\",\n      \"ts\": \"1234567890.000002\",\n      \"thread_ts\": \"1234567890.000001\"\n    }\n  ]\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "llm-chat-completions",
+      "documentation": "OpenAI-compatible chat completions mock for Guardian agents",
+      "method": "post",
+      "endpoint": "/api/llm/chat/completions",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "completions-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"id\": \"chatcmpl-mock-test-001\",\n  \"object\": \"chat.completion\",\n  \"created\": 1234567890,\n  \"model\": \"{{jsonPath 'model' body}}\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"Guardian insight: Based on the analysis, this request requires attention. The system has processed the input and determined the appropriate response path. Priority level: normal.\"\n      },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 50,\n    \"completion_tokens\": 35,\n    \"total_tokens\": 85\n  }\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "slack-deliver",
+      "documentation": "Demo delivery endpoint for Sarthi webhook testing",
+      "method": "post",
+      "endpoint": "/slack/deliver",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "deliver-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"delivered\": true,\n  \"message_id\": \"mock-msg-001\",\n  \"delivered_at\": \"2026-04-27T12:00:00Z\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    }
+  ],
+  "proxyMode": false,
+  "cors": true,
+  "corsAllowCredentials": false,
+  "corsAllowOrigin": "*",
+  "corsAllowMethods": "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+  "corsAllowHeaders": "Content-Type, Authorization, X-Slack-Signature, X-Slack-Request-Timestamp",
+  "corsExposeHeaders": "",
+  "corsMaxAge": 0
+}

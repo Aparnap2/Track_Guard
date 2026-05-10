@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"flag"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -18,12 +21,16 @@ import (
 	"iterateswarm-core/internal/api"
 	"iterateswarm-core/internal/db"
 	"iterateswarm-core/internal/debug"
+	"iterateswarm-core/internal/events"
 	"iterateswarm-core/internal/redpanda"
 	"iterateswarm-core/internal/temporal"
+	"iterateswarm-core/internal/tracing"
 	"iterateswarm-core/internal/web"
 
 	_ "github.com/lib/pq"
 )
+
+var redpandaClient *redpanda.Client
 
 func main() {
 	// Command line flags
@@ -37,21 +44,36 @@ func main() {
 
 	log.Println("Starting IterateSwarm Core Server...")
 
-	// Initialize Redpanda client
+	// Initialize tracing (graceful - fails silently if collector unavailable)
+	tracerProvider, tracerErr := tracing.InitTracer(context.Background(), tracing.NewConfig())
+	if tracerErr != nil {
+		log.Printf("Warning: Tracing unavailable: %v", tracerErr)
+	} else if tracerProvider != nil {
+		defer tracerProvider.Shutdown(context.Background())
+		log.Println("OTel tracing initialized")
+	}
+
+	// Initialize Redpanda client (optional - graceful degradation)
+	var redpandaClient *redpanda.Client
 	redpandaClient, err := redpanda.NewClient([]string{*redpandaBrokers}, *topic)
 	if err != nil {
-		log.Fatalf("Failed to connect to Redpanda: %v", err)
+		log.Printf("Warning: Redpanda unavailable - running in degraded mode: %v", err)
+		redpandaClient = nil
+	} else {
+		defer redpandaClient.Close()
+		log.Println("Connected to Redpanda")
 	}
-	defer redpandaClient.Close()
-	log.Println("Connected to Redpanda")
 
-	// Initialize Temporal client
-	temporalClient, err := temporal.NewClient(*temporalAddr, *namespace)
+	// Initialize Temporal client (optional - graceful degradation)
+	var temporalClient *temporal.Client
+	temporalClient, err = temporal.NewClient(*temporalAddr, *namespace)
 	if err != nil {
-		log.Fatalf("Failed to connect to Temporal: %v", err)
+		log.Printf("Warning: Temporal unavailable - running in degraded mode: %v", err)
+		temporalClient = nil
+	} else {
+		defer temporalClient.Close()
+		log.Println("Connected to Temporal")
 	}
-	defer temporalClient.Close()
-	log.Println("Connected to Temporal")
 
 	// Initialize PostgreSQL database connection
 	dbURL := os.Getenv("DATABASE_URL")
@@ -108,6 +130,9 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} (${latency})\n",
 	}))
 	app.Use(cors.New())
+
+	// Note: OTel tracing middleware can be added when Fiber OTel contrib is available
+	// app.Use(tracing.MiddlewareFiber())
 
 	// Health check routes (no auth required)
 	app.Get("/health", handler.HandleHealth)
@@ -212,17 +237,43 @@ func errorHandler(c *fiber.Ctx, err error) error {
 	})
 }
 
-// handleSlackCommandProxy forwards Slack slash commands to Python Slack Bolt handler.
+// handleSlackCommandProxy forwards Slack slash commands to Python via Redpanda.
 // This enables /sarthi decide and other slash commands.
+// Falls back to direct HTTP if Redpanda unavailable.
 func handleSlackCommandProxy(c *fiber.Ctx) error {
+	// Parse the Slack command payload
+	payload := c.Body()
+
+	// Create event envelope for Redpanda
+	envelope := events.EventEnvelope{
+		EventType:  "SLACK_COMMAND",
+		TenantID:  c.Get("X-Tenant-ID", "default"),
+		Source:    events.EventSource("slack"),
+		PayloadRef: "raw_events:slack-cmd-" + time.Now().Format(time.RFC3339Nano),
+		OccurredAt: time.Now().UTC(),
+	}
+
+	// Try Redpanda first
+	if redpandaClient != nil {
+		err := redpandaClient.PublishEnvelope("sarthi.slack.events", envelope)
+		if err == nil {
+			log.Printf("Published slack command to Redpanda")
+			return c.Status(fiber.StatusAccepted).JSON(map[string]string{
+				"status":  "accepted",
+				"message": "Command queued for processing",
+			})
+		}
+		log.Printf("Redpanda publish failed, falling back to HTTP: %v", err)
+	}
+
+	// Fallback to direct HTTP
 	slackBotURL := os.Getenv("SLACK_BOT_URL")
 	if slackBotURL == "" {
 		slackBotURL = "http://localhost:3001"
 	}
 
-	// Forward the request to Python Slack Bolt
-	client := fiber.DefaultClient()
-	resp, err := client.Post(slackBotURL + "/slack/events", "application/x-www-form-urlencoded", c.Body())
+	client := &http.Client{}
+	resp, err := client.Post(slackBotURL+"/slack/events", "application/x-www-form-urlencoded", bytes.NewReader(payload))
 	if err != nil {
 		log.Printf("Failed to proxy to Slack Bot: %v", err)
 		return c.Status(fiber.StatusBadGateway).JSON(map[string]string{
@@ -231,6 +282,5 @@ func handleSlackCommandProxy(c *fiber.Ctx) error {
 	}
 	defer resp.Body.Close()
 
-	// Copy response back to Slack
 	return c.Status(resp.StatusCode).SendStream(resp.Body)
 }

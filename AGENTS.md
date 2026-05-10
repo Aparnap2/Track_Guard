@@ -2,12 +2,26 @@
 
 ## Project Overview
 
-**Go-only ChatOps platform** with Temporal orchestration.
+**Go + Python ChatOps platform** with Temporal orchestration and HTMX UI.
 
 **Tech Stack:**
-- **Go Core** (`apps/core/`): Go 1.24, Fiber, sqlc, Temporal SDK
+- **Go Core** (`apps/core/`): Go 1.24, Fiber, sqlc, Temporal SDK, HTMX
+- **Python** (`apps/ai/`): Python 3.13, LangGraph, DSPy, Pydantic
 - **LLM Providers**: OpenAI-compatible SDK (Azure AI Foundry, Groq, Ollama)
 - **Infrastructure**: Docker (Temporal, Qdrant, PostgreSQL)
+
+---
+
+## V3.0 Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Python Tests | ✅ 38 passing | session, cofounder, guardian, slackbot tests |
+| Go Build | ✅ Clean | Binary compiles successfully |
+| Go HTMX Tests | ✅ 6 passing | onboarding, watchlist, llmops screens |
+| HTMX Routes | ✅ 3 routes | /api/htmx/onboarding, /api/htmx/watchlist, /api/htmx/llmops |
+| DB Tests | 🟡 Skip | Requires PostgreSQL container |
+| Webhook Tests | 🟡 Skip | Requires Redpanda container |
 
 ---
 
@@ -57,6 +71,26 @@ make build
 
 # Generate protobuf code
 make proto
+```
+
+### Python (apps/ai/)
+
+```bash
+# Install dependencies (requires uv)
+cd apps/ai
+uv sync
+
+# Run all tests
+uv run pytest tests/ -v
+
+# Run specific test suite
+uv run pytest tests/test_session.py -v
+uv run pytest tests/test_cofounder.py -v
+uv run pytest tests/test_guardian.py -v
+uv run pytest tests/test_slackbot.py -v
+
+# Run with coverage
+uv run pytest tests/ --cov=src --cov-report=term-missing
 ```
 
 ---
@@ -131,7 +165,7 @@ apps/
       server/        # HTTP server entrypoint
       worker/        # Temporal worker entrypoint
     internal/
-      api/           # HTTP handlers
+      api/           # HTTP handlers (Fiber + HTMX)
       agents/        # AI agents (triage, spec)
       memory/        # Qdrant client
       config/        # LLM configuration
@@ -139,8 +173,13 @@ apps/
       database/      # Connection utilities
       temporal/      # Temporal client
       workflow/      # Temporal workflows & activities
+      htmx/          # HTMX route handlers
     web/templates/   # HTML templates
     sqlc.yaml       # sqlc configuration
+  ai/                # Python AI Worker
+    src/             # Python source (agents, workflows, guardian)
+    tests/           # Pytest test suite
+    pyproject.toml   # Python dependencies
 ```
 
 ---

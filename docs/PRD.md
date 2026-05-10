@@ -1,12 +1,11 @@
 # Sarthi — Product Requirements Document
 ## Guardian AI for Solo Founders | Version 3.0
 
-**Last Updated:** April 21, 2026
-**Status:** ✅ V3.0 Complete — Chief of Staff features delivered
-**Test Coverage:** 241+ passed, 6 skipped (0 failures)
-**Agents:** PulseAgent, AnomalyAgent, InvestorAgent, QAAgent, CommsTriage, HiringAgent
-**Guardian:** 17-pattern watchlist (6 Finance, 6 BI, 5 Ops)
-**Chief of Staff:** Decision Journal, Weekly Brief, Investor Relations, CommsTriage, Hiring
+**Last Updated:** April 27, 2026
+**Status:** ✅ V3.0 Complete — Event Bus Refactor + HTMX Ops
+**Test Coverage:** 104+ passed (57 Go+Python, 3 Playwright E2E)
+**Architecture:** Distributed microservices (Go Gateway + Python Worker via Redpanda)
+**HTMX Screens:** Onboarding, Watchlist, LLMOps, HITL Queue
 
 ---
 

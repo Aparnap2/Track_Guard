@@ -1,0 +1,383 @@
+# IterateSwarm Sarthi - Helm Umbrella Chart Values
+# Deploys all microservices + infrastructure to k3d
+
+global:
+  namespace: sarthi
+  tenant: default
+  imageRegistry: "ghcr.io/iterateswarm"
+  imagePullPolicy: IfNotPresent
+
+  # OpenTelemetry configuration
+  otel:
+    endpoint: "otel-collector:4317"
+    serviceName: "{{ .Release.Name }}"
+    
+  # Common labels
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: sarthi
+
+# ===========================================
+# Microservices Configuration
+# ===========================================
+
+apiGateway:
+  enabled: true
+  name: api-gateway
+  image: gateway:latest
+  replicaCount: 2
+  port: 3000
+  
+  # Resource limits optimized for 16GB RAM constraint
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  # Health check configuration
+  health:
+    path: /health
+    port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Environment variables (OTel injected)
+  env:
+    - name: OTEL_SERVICE_NAME
+      value: "api-gateway"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: sarthi-postgres
+          key: uri
+    - name: TEMPORAL_ADDRESS
+      value: "temporal:7233"
+    - name: REDPANDA_BROKERS
+      value: "redpanda:9092"
+
+decisionEngine:
+  enabled: true
+  name: decision-engine
+  image: decision:latest
+  replicaCount: 2
+  port: 3001
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  
+  health:
+    path: /health
+    port: 3001
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  env:
+    - name: OTEL_SERVICE_NAME
+      value: "decision-engine"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: sarthi-postgres
+          key: uri
+    - name: QDRANT_URL
+      value: "http://qdrant:6333"
+    - name: REDIS_URL
+      value: "redis://:6379"
+
+memoryService:
+  enabled: true
+  name: memory-service
+  image: memory:latest
+  replicaCount: 2
+  port: 3002
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  health:
+    path: /health
+    port: 3002
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  env:
+    - name: OTEL_SERVICE_NAME
+      value: "memory-service"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+    - name: QDRANT_URL
+      value: "http://qdrant:6333"
+    - name: REDIS_URL
+      value: "redis://:6379"
+
+workflowService:
+  enabled: true
+  name: workflow-service
+  image: workflow:latest
+  replicaCount: 2
+  port: 3003
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  health:
+    path: /health
+    port: 3003
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  env:
+    - name: OTEL_SERVICE_NAME
+      value: "workflow-service"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+    - name: TEMPORAL_ADDRESS
+      value: "temporal:7233"
+    - name: TEMPORAL_NAMESPACE
+      value: "default"
+
+deliveryService:
+  enabled: true
+  name: delivery-service
+  image: delivery:latest
+  replicaCount: 2
+  port: 3004
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  health:
+    path: /health
+    port: 3004
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  env:
+    - name: OTEL_SERVICE_NAME
+      value: "delivery-service"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+    - name: REDPANDA_BROKERS
+      value: "redpanda:9092"
+
+# ===========================================
+# Infrastructure Services
+# ===========================================
+
+# Redis Cache
+redis:
+  enabled: true
+  name: redis
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 7.4-debian-12
+  architecture: standalone
+  
+  auth:
+    enabled: false
+  
+  master:
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    persistence:
+      enabled: false  # Ephemeral for k3d
+  
+  replica:
+    replicaCount: 0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# PostgreSQL Database
+postgres:
+  enabled: true
+  name: postgres
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 17.2.0-debian-12
+  architecture: standalone
+  
+  auth:
+    postgresPassword: sarthi_dev_password
+    database: sarthi
+  
+  primary:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    persistence:
+      enabled: false  # Ephemeral for k3d
+    service:
+      ports:
+        postgresql: 5432
+
+# Qdrant Vector Database
+qdrant:
+  enabled: true
+  name: qdrant
+  image:
+    registry: ghcr.io
+    repository: qdrant/qdrant
+    tag: v1.12.0
+  
+  config:
+    storage:
+      storage_memory_limit: 512m
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Redpanda (Kafka-compatible messaging)
+redpanda:
+  enabled: true
+  name: redpanda
+  image:
+    registry: docker.redpanda.com
+    repository: redpanda/redpanda
+    tag: v25.1.1
+  numPartitions: 3
+  persistence:
+    enabled: false
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+
+# Jaeger Tracing
+jaeger:
+  enabled: true
+  name: jaeger
+  provisionJobDaemon:
+    enabled: false
+  
+  collector:
+    enabled: true
+    maxTraces: 10000
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  
+  query:
+    enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  
+  agent:
+    enabled: true
+    daemonset:
+      enabled: true
+    resources:
+      limits:
+      cpu: 100m
+      memory: 128Mi
+
+# OpenTelemetry Collector
+otelCollector:
+  enabled: true
+  name: otel-collector
+  mode: deployment
+  autoscaler:
+    enabled: false
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      jaeger:
+        protocols:
+          thrift_http:
+            endpoint: 0.0.0.0:14268
+          grpc:
+            endpoint: 0.0.0.0:14250
+      zipkin:
+        endpoint: 0.0.0.0:9411
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1000
+      memory_limiter:
+        limit_mib: 256
+        check_interval: 1s
+    exporters:
+      otlp:
+        endpoint: "http://jaeger-collector:4317"
+        tls:
+          insecure: true
+      logging:
+        loglevel: debug
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp, jaeger, zipkin]
+          processors: [batch, memory_limiter]
+          exporters: [otlp, logging]

@@ -1,0 +1,9 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=jaegertracing/all-in-one:latest /go/bin/all-in-one-linux /usr/local/bin/jaeger
+
+EXPOSE 16686 4317 4318
+
+CMD ["jaeger", "--query.base-path=/"]

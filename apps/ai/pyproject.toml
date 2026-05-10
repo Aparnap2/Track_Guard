@@ -82,5 +82,6 @@ include = ["src*"]
 
 [dependency-groups]
 dev = [
+    "langfuse>=4.6.1",
     "mypy>=1.19.1",
 ]

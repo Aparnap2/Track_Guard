@@ -19,7 +19,7 @@ import asyncpg
 
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://sarthi:sarthi@localhost:5432/sarthi")
+DATABASE_URL = os.environ.get("DATABASE_URL", f"postgresql://{os.environ.get('DB_USER','iterateswarm')}:{os.environ.get('DB_PASSWORD','iterateswarm')}@localhost:{os.environ.get('DB_PORT','5432')}/iterateswarm")
 
 
 @dataclass
@@ -60,6 +60,10 @@ class MissionState:
     active_alerts: str | None = None  # comma-separated
     founder_focus: str | None = None
 
+    # Trust Battery integration (V3.0)
+    trust_score: float | None = None  # 0.00-1.00 from trust battery
+    route_priority: int | None = None  # routing priority based on trust
+
     # Runtime fields (not persisted to DB)
     skip_reason: str | None = None
     data_quality: "DataQualityResult" = None
@@ -82,7 +86,7 @@ async def get_mission_state(tenant_id: str) -> MissionState:
             """
             SELECT tenant_id, timestamp, runway_days, burn_alert, burn_severity,
                    mrr_trend, churn_rate, churn_risk_users, top_feature_ask,
-                   error_spike, active_alerts, founder_focus
+                   error_spike, active_alerts, founder_focus, trust_score, route_priority
             FROM mission_states
             WHERE tenant_id = $1
             ORDER BY timestamp DESC
@@ -106,6 +110,8 @@ async def get_mission_state(tenant_id: str) -> MissionState:
                 error_spike=row["error_spike"],
                 active_alerts=row["active_alerts"],
                 founder_focus=row["founder_focus"],
+                trust_score=row["trust_score"],
+                route_priority=row["route_priority"],
             )
     except Exception as e:
         log.warning(f"MissionState lookup failed for {tenant_id}: {e}")
@@ -131,9 +137,9 @@ async def update_mission_state(state: MissionState) -> bool:
             INSERT INTO mission_states (
                 tenant_id, timestamp, runway_days, burn_alert, burn_severity,
                 mrr_trend, churn_rate, churn_risk_users, top_feature_ask,
-                error_spike, active_alerts, founder_focus, created_at
+                error_spike, active_alerts, founder_focus, trust_score, route_priority, created_at
             )
-            VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+            VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
             ON CONFLICT (tenant_id) DO UPDATE SET
                 timestamp = NOW(),
                 runway_days = EXCLUDED.runway_days,
@@ -145,7 +151,9 @@ async def update_mission_state(state: MissionState) -> bool:
                 top_feature_ask = EXCLUDED.top_feature_ask,
                 error_spike = EXCLUDED.error_spike,
                 active_alerts = EXCLUDED.active_alerts,
-                founder_focus = EXCLUDED.founder_focus
+                founder_focus = EXCLUDED.founder_focus,
+                trust_score = EXCLUDED.trust_score,
+                route_priority = EXCLUDED.route_priority
             """,
             state.tenant_id,
             state.runway_days,
@@ -158,6 +166,8 @@ async def update_mission_state(state: MissionState) -> bool:
             state.error_spike,
             state.active_alerts,
             state.founder_focus,
+            state.trust_score,
+            state.route_priority,
         )
         await conn.close()
         log.info(f"MissionState updated for tenant: {state.tenant_id}")

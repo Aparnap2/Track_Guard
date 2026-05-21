@@ -24,13 +24,13 @@ class TemporalConfig(BaseModel):
         return f"{self.host}:{self.port}"
 
 
-class OllamaConfig(BaseModel):
-    """Ollama LLM configuration (OpenAI-compatible)."""
+class OpenRouterConfig(BaseModel):
+    """OpenRouter LLM configuration (OpenAI-compatible)."""
 
-    base_url: str = "http://localhost:11434/v1"
-    api_key: str = "ollama"
-    model: str = "qwen2.5-coder:3b"
-    embedding_model: str = "nomic-embed-text"
+    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: str = ""
+    model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    embedding_model: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
 
 
 class QdrantConfig(BaseModel):
@@ -67,7 +67,7 @@ class Config(BaseModel):
     """Main configuration container."""
 
     temporal: TemporalConfig = TemporalConfig()
-    ollama: OllamaConfig = OllamaConfig()
+    openrouter: OpenRouterConfig = OpenRouterConfig()
     qdrant: QdrantConfig = QdrantConfig()
     telegram: TelegramConfig = TelegramConfig()
     logging: LoggingConfig = LoggingConfig()
@@ -84,7 +84,6 @@ def load_config(config_path: Optional[str] = None) -> Config:
         Config object with all settings.
     """
     if config_path is None:
-        # Look for config.yaml in common locations
         search_paths = [
             Path.cwd() / "config.yaml",
             Path(__file__).parent.parent / "config.yaml",

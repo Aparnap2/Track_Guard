@@ -839,3 +839,157 @@ uv run pytest tests/test_agent_logic.py -v  # Specific file
 | Where is Qdrant memory manager? | [`apps/ai/src/memory/qdrant_ops.py`](apps/ai/src/memory/qdrant_ops.py) |
 | Where are DB migrations? | [`infra/migrations/`](infra/migrations/) + [`apps/ai/src/session/001_session_layer.sql`](apps/ai/src/session/001_session_layer.sql) |
 | Where is LLM config? | [`apps/ai/src/config/llm.py`](apps/ai/src/config/llm.py) |
+
+---
+
+## 14. COMPONENT GRAPH: RUNTIME DEPENDENCY FLOW
+
+### Infrastructure Layer
+```
+Docker Compose (docker-compose.yml) → 
+├── PostgreSQL:5433 (structured data)
+├── Qdrant:6333 (vector memory)
+├── Redis:6379 (working memory/sessions)
+├── Redpanda:9094 (event bus)
+├── Temporal:7233 (workflow orchestration)
+├── Prometheus:9090 (metrics)
+├── Grafana:3001 (dashboards)
+└── Jaeger:16686 (tracing)
+```
+
+### Application Layer Data Flow
+```
+External Events (Slack/Discord/Webhooks) →
+Go Gateway (apps/core:3000) →
+├── Redpanda Events → Python AI Worker (apps/ai)
+├── PostgreSQL (structured persistence)
+├── Temporal Workflows (orchestration)
+└── HTMX UI (founder dashboard)
+
+Python AI Worker →
+├── LangGraph Agents (pulse/anomaly/investor/qa)
+├── Memory Spine (5-layer: Redis→Qdrant→Graphiti→PostgreSQL→Qdrant)
+├── Guardian Watchlist (17 failure patterns)
+├── Temporal Activities (durable execution)
+└── Slack/Telegram Delivery
+```
+
+### Configuration Dependencies
+```
+.env → docker-compose.yml → service containers
+apps/ai/pyproject.toml → Python dependencies
+apps/core/go.mod → Go dependencies
+config/otel/collector.yaml → OpenTelemetry tracing
+infra/migrations/*.sql → PostgreSQL schema
+scripts/demo_seed.py → synthetic data seeding
+```
+
+### Runtime Data Flow
+```
+1. Webhook → Go Fiber Handler → Event Envelope → Redpanda
+2. Redpanda → Temporal Signal → Workflow Execution
+3. Workflow → Python Activity → LangGraph Agent
+4. Agent → Memory Spine → Qdrant/PostgreSQL/Redis
+5. Agent Result → Slack Block Kit → Founder Notification
+6. Feedback Button → Go Handler → Redpanda → Python Consumer → Threshold Adjustment
+```
+
+---
+
+## 15. HIDDEN COUPLING: CROSS-FOLDER DEPENDENCIES
+
+### Critical Hidden Couplings Identified:
+
+1. **Event Schema Coupling**:
+   - `apps/core/internal/events/envelope.go` defines EventEnvelope struct
+   - `apps/ai/src/schemas/event_envelope.py` must match exactly
+   - **Risk**: Changing Go struct breaks Python deserialization
+
+2. **Database Schema Coupling**:
+   - `infra/migrations/*.sql` defines PostgreSQL schema
+   - `apps/ai/src/db/*.py` assumes specific table structures
+   - `apps/core/internal/db/queries/*.sql` uses same tables
+   - **Risk**: Migration changes can break both Go and Python queries
+
+3. **Temporal Task Queue Coupling**:
+   - `apps/core/cmd/worker/main.go` publishes to "SARTHI-MAIN-QUEUE"
+   - `apps/ai/src/worker.py` consumes from same queue
+   - **Risk**: Queue name changes break cross-service communication
+
+4. **gRPC Protocol Coupling**:
+   - `proto/ai/v1/*.proto` defines service interface
+   - `gen/go/ai/` and `gen/python/ai/` generated code must stay in sync
+   - **Risk**: Proto changes require regeneration in both languages
+
+5. **Memory Collection Coupling**:
+   - `apps/ai/src/setup/init_qdrant_collections.py` creates collections
+   - `apps/ai/src/memory/*.py` assumes specific collection names/schemas
+   - **Risk**: Collection schema changes break memory operations
+
+6. **Configuration Coupling**:
+   - `docker-compose.yml` service names hardcoded in connection strings
+   - `apps/ai/src/config/config_module.py` assumes specific hostnames
+   - **Risk**: Service renames break internal networking
+
+### Dependency Matrix:
+```
+apps/core/internal/events/ ←→ apps/ai/src/schemas/
+apps/core/internal/db/ ←→ infra/migrations/ ←→ apps/ai/src/db/
+apps/core/cmd/worker/ ←→ apps/ai/src/worker.py
+proto/ ←→ gen/go/ ←→ gen/python/
+config/ ←→ apps/*/src/config/
+scripts/demo_seed.py ←→ infra/migrations/ ←→ apps/ai/src/memory/
+```
+
+---
+
+## 16. CONTEXT INTEGRITY CHECK
+
+### Files Evaluated:
+I successfully analyzed the following key files and directories:
+
+**Root Level:**
+- docker-compose.yml, Makefile, README.md, CODEBASE_WALKTHROUGH.md
+- .env.example, pytest.ini, buf.yaml, render.yaml
+
+**Apps Structure:**
+- apps/ai/src/ (complete directory tree with 200+ files)
+- apps/core/ (complete directory tree with 100+ files)
+- apps/swarm-chat/, apps/swarm-repo/, apps/sandbox/
+
+**Configuration:**
+- config/otel/collector.yaml, config/prometheus/, config/grafana/
+- infra/migrations/*.sql, k8s/helm/, docker/
+
+**Scripts & Tools:**
+- scripts/ (40+ shell/Python scripts)
+- playwright/ (E2E tests), mockoon/ (API mocking)
+
+**Generated Code:**
+- gen/go/, gen/python/, proto/
+
+**Documentation:**
+- docs/decisions/ (6 ADRs), docs/*.md
+
+### OMITTED FILES:
+Due to the comprehensive nature of this codebase (1000+ files), the following were not individually examined but their structure was captured:
+
+**Binary/Generated Content:**
+- .mypy_cache/, __pycache__/, node_modules/ equivalent directories
+- Compiled binaries in apps/core/bin/
+- Docker build contexts and temporary files
+
+**Large External Dependencies:**
+- signoz-install/ (complete SigNoz installation - 500+ files)
+- Frontend assets in signoz-install/frontend/
+- Third-party configuration templates
+
+**Test Artifacts:**
+- playwright/test-results/, playwright/playwright-report/
+- Individual test output files and screenshots
+
+**Development Tools:**
+- .qodo/, .zencoder/, .zenflow/ (AI coding assistant configs)
+- IDE-specific configuration files
+
+All critical runtime dependencies, configuration files, source code, and architectural components were successfully analyzed. The omitted files are primarily build artifacts, external tools, and generated content that don't affect the core system architecture or runtime dependencies.

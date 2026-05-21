@@ -1,7 +1,7 @@
 """
 DSPy signatures for the PulseAgent.
 
-Uses Ollama qwen3:0.6b via the OpenAI-compatible endpoint.
+Uses OpenRouter via the OpenAI-compatible endpoint.
 dspy.LM is configured once at module level; callers just
 instantiate the predictors.
 
@@ -13,14 +13,14 @@ from __future__ import annotations
 import os
 import dspy
 
-# ── Configure DSPy LM (Ollama, OpenAI-compat endpoint) ───────────
-_OLLAMA_BASE  = os.getenv("OLLAMA_BASE_URL",   "http://localhost:11434/v1")
-_CHAT_MODEL   = os.getenv("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
+# ── Configure DSPy LM (OpenRouter, OpenAI-compat endpoint) ───────────
+_API_BASE  = os.getenv("OPENROUTER_BASE_URL",   "https://openrouter.ai/api/v1")
+_CHAT_MODEL   = os.getenv("OPENROUTER_LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
 
 _lm = dspy.LM(
     model=f"openai/{_CHAT_MODEL}",
-    api_base=_OLLAMA_BASE,
-    api_key="ollama",          # Ollama ignores the key value
+    api_base=_API_BASE,
+    api_key=os.getenv("OPENROUTER_API_KEY", ""),
     temperature=0.2,
     max_tokens=512,
     cache=False,               # no caching — metrics must be live

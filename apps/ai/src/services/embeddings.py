@@ -1,4 +1,4 @@
-"""Ollama Embeddings Service for semantic operations.
+"""OpenRouter Embeddings Service for semantic operations.
 
 This module provides a clean separation of concerns for all embedding-related
 operations including generation, similarity calculation, and duplicate detection.
@@ -33,10 +33,10 @@ class SimilarityResult(BaseModel):
     threshold: float
 
 
-class OllamaEmbeddings:
-    """Service for generating and working with Ollama embeddings.
+class OpenRouterEmbeddings:
+    """Service for generating and working with OpenRouter embeddings.
 
-    Uses nomic-embed-text model for high-quality embeddings with 768 dimensions.
+    Uses nvidia/llama-nemotron-embed-vl-1b-v2:free model for high-quality embeddings with 2048 dimensions.
     Supports cosine similarity for duplicate detection.
     """
 
@@ -44,9 +44,9 @@ class OllamaEmbeddings:
         """Initialize the embeddings service.
 
         Args:
-            config: Optional Ollama configuration. If not provided, loads from settings.
+            config: Optional OpenRouter configuration. If not provided, loads from settings.
         """
-        self.config = config or _config.get_config().ollama
+        self.config = config or _config.get_config().openrouter
         self.http_client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -81,9 +81,6 @@ class OllamaEmbeddings:
                 json={
                     "model": self.config.embedding_model,
                     "input": text,
-                    "options": {
-                        "num_thread": 4,
-                    },
                 },
             )
             response.raise_for_status()
@@ -137,7 +134,7 @@ class OllamaEmbeddings:
     async def embed_stream(self, text: str) -> AsyncIterator[list[float]]:
         """Stream embedding generation (placeholder for future streaming support).
 
-        Note: Ollama's embeddings API doesn't currently support streaming.
+        Note: OpenRouter's embeddings API doesn't currently support streaming.
         This method is provided for API consistency.
 
         Args:
@@ -260,18 +257,17 @@ class OllamaEmbeddings:
             if score >= threshold:
                 similarities.append((item_id, score))
 
-        # Sort by score descending and limit to top_k
         similarities.sort(key=lambda x: x[1], reverse=True)
         return similarities[:top_k]
 
 
 # Global service instance
-_embeddings_service: OllamaEmbeddings | None = None
+_embeddings_service: OpenRouterEmbeddings | None = None
 
 
-async def get_embeddings_service() -> OllamaEmbeddings:
+async def get_embeddings_service() -> OpenRouterEmbeddings:
     """Get the global embeddings service instance."""
     global _embeddings_service
     if _embeddings_service is None:
-        _embeddings_service = OllamaEmbeddings()
+        _embeddings_service = OpenRouterEmbeddings()
     return _embeddings_service

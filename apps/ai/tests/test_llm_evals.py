@@ -12,6 +12,7 @@ Requirements:
 """
 import pytest
 import os
+import httpx
 
 # CRITICAL: Clear Azure env vars to force Ollama usage
 # Azure credentials in .env take priority, so we must remove them
@@ -27,6 +28,18 @@ os.environ["OLLAMA_EMBED_MODEL"] = "nomic-embed-text:latest"
 os.environ["QDRANT_HOST"] = "localhost"
 os.environ["QDRANT_PORT"] = "6333"
 
+
+def _llm_reachable() -> bool:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").replace("/v1", "")
+    try:
+        resp = httpx.get(f"{base_url}/api/tags", timeout=3.0)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+LLM_REACHABLE = _llm_reachable()
+
 # Reset LLM client to pick up new config
 from src.config.llm import reset_client
 reset_client()
@@ -37,6 +50,7 @@ TENANT = "test-tenant-llm-eval"
 class TestLLMConnectivity:
     """Verify Ollama is reachable and models are available."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_ollama_reachable(self):
         """Ollama API should respond on port 11434."""
         import requests
@@ -44,6 +58,7 @@ class TestLLMConnectivity:
         assert resp.status_code == 200
         assert "models" in resp.json()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_chat_model_available(self):
         """sam860/LFM2:2.6b model should be available."""
         import requests
@@ -51,6 +66,7 @@ class TestLLMConnectivity:
         models = [m["name"] for m in resp.json()["models"]]
         assert any("LFM2" in m or "lfm" in m.lower() for m in models)
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_nomic_embed_available(self):
         """nomic-embed-text model should be available."""
         import requests
@@ -58,6 +74,7 @@ class TestLLMConnectivity:
         models = [m["name"] for m in resp.json()["models"]]
         assert any("nomic" in m for m in models)
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_chat_completions_smoke(self):
         """Chat completions should work via OpenAI-compatible API."""
         from openai import OpenAI
@@ -73,6 +90,7 @@ class TestLLMConnectivity:
         assert resp.choices[0].message.content
         assert len(resp.choices[0].message.content.strip()) > 0
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_embeddings_smoke(self):
         """Embeddings should work via OpenAI-compatible API."""
         from openai import OpenAI
@@ -92,10 +110,12 @@ class TestLLMConnectivity:
 class TestRevenueTrackerLLM:
     """Evaluate Revenue Tracker agent reasoning with real LLM."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def setup_method(self):
         from src.agents.revenue_tracker import RevenueTrackerAgent
         self.agent = RevenueTrackerAgent()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_mrr_milestone_detection(self):
         """Revenue Tracker should detect MRR milestone crossing."""
         state = {"tenant_id": TENANT, "last_30d_mrr": 98000}
@@ -109,6 +129,7 @@ class TestRevenueTrackerLLM:
         assert result["is_good_news"] is True
         assert "1L" in result["headline"] or "1,00,000" in result["headline"] or "100" in result["headline"]
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_stale_deal_detection(self):
         """Revenue Tracker should detect stale deals (>7 days)."""
         state = {
@@ -126,6 +147,7 @@ class TestRevenueTrackerLLM:
         assert "Acme" in result["headline"]
         assert "idle" in result["headline"].lower() or "days" in result["headline"].lower()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_concentration_risk_detection(self):
         """Revenue Tracker should flag >30% concentration."""
         state = {"tenant_id": TENANT, "top_customer_pct": 0.38}
@@ -142,10 +164,12 @@ class TestRevenueTrackerLLM:
 class TestCSAgentLLM:
     """Evaluate CS Agent reasoning with real LLM."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def setup_method(self):
         from src.agents.cs_agent import CSAgent
         self.agent = CSAgent()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_churn_risk_detection(self):
         """CS Agent should detect high churn risk (>7 days no login)."""
         state = {
@@ -161,6 +185,7 @@ class TestCSAgentLLM:
         assert result["urgency"] == "high"
         assert "10 days" in result["headline"] or "days" in result["headline"]
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_ticket_escalation(self):
         """CS Agent should escalate ≥3 tickets in 48h."""
         state = {
@@ -178,10 +203,12 @@ class TestCSAgentLLM:
 class TestPeopleCoordinatorLLM:
     """Evaluate People Coordinator agent reasoning with real LLM."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def setup_method(self):
         from src.agents.people_coordinator import PeopleCoordinatorAgent
         self.agent = PeopleCoordinatorAgent()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_eng_checklist_has_github(self):
         """Eng checklist should include GitHub."""
         state = {"tenant_id": TENANT}
@@ -198,6 +225,7 @@ class TestPeopleCoordinatorLLM:
             # If checklist is a list
             assert "github" in checklist
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_sales_checklist_no_github(self):
         """Sales checklist should NOT include GitHub."""
         state = {"tenant_id": TENANT}
@@ -214,6 +242,7 @@ class TestPeopleCoordinatorLLM:
             # If checklist is a list
             assert "github" not in checklist
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_offboarding_revoke_list(self):
         """Offboarding should generate revoke list."""
         state = {"tenant_id": TENANT}
@@ -235,10 +264,12 @@ class TestPeopleCoordinatorLLM:
 class TestChiefOfStaffLLM:
     """Evaluate Chief of Staff agent reasoning with real LLM."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def setup_method(self):
         from src.agents.chief_of_staff import ChiefOfStaffAgent
         self.agent = ChiefOfStaffAgent()
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_briefing_max_5_items(self):
         """Briefing should have max 5 items."""
         state = {
@@ -253,6 +284,7 @@ class TestChiefOfStaffLLM:
         
         assert result["output_json"]["item_count"] <= 5
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_briefing_no_jargon(self):
         """Briefing headlines must be jargon-free."""
         from src.agents.base import BANNED_JARGON
@@ -270,6 +302,7 @@ class TestChiefOfStaffLLM:
             assert term.lower() not in result.get("headline", "").lower(), \
                 f"Banned jargon '{term}' found in: {result['headline']}"
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_investor_draft_has_metrics(self):
         """Investor draft should contain revenue, burn, runway."""
         state = {
@@ -291,6 +324,7 @@ class TestChiefOfStaffLLM:
 class TestMemoryRetrievalLLM:
     """Evaluate Qdrant memory retrieval quality with Ollama embeddings."""
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_memory_write_and_retrieve(self):
         """Memory should be writable and retrievable via semantic search."""
         from src.memory.qdrant_ops import upsert_memory, query_memory, clear_tenant_memory
@@ -320,6 +354,7 @@ class TestMemoryRetrievalLLM:
         assert "AWS" in results[0]["content"]
         assert results[0]["score"] >= 0.5
 
+    @pytest.mark.skipif(not LLM_REACHABLE, reason="No LLM reachable")
     def test_memory_distinct_by_tenant(self):
         """Memory should be isolated by tenant_id."""
         from src.memory.qdrant_ops import upsert_memory, query_memory, clear_tenant_memory

@@ -7,8 +7,21 @@ from __future__ import annotations
 import os
 import re
 import json
+import httpx
 from dataclasses import dataclass
-from src.config.llm import get_llm_client
+from src.config.llm import get_llm_client, get_chat_model
+
+_openrouter_client: httpx.Client | None = None
+
+
+def _get_openrouter_client() -> httpx.Client:
+    global _openrouter_client
+    if _openrouter_client is None:
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        _openrouter_client = httpx.Client(base_url=base_url, headers=headers, timeout=60.0)
+    return _openrouter_client
 
 # ── Mechanical replacements (no LLM cost) ─────────────────────────────
 JARGON_MAP: dict[str, str] = {
@@ -103,7 +116,7 @@ class ToneFilter:
 
     def __init__(self) -> None:
         self._client = get_llm_client()
-        self._model = "openai/gpt-4o-mini"  # or from env
+        self._model = get_chat_model()
 
     # ── Public API ─────────────────────────────────────────────────────
 
@@ -115,21 +128,26 @@ class ToneFilter:
         is_good_news: bool = False,
         owner_name: str | None = None,
         language: str = "en",
+        llm_rewrite: bool = True,
     ) -> ToneResult:
         """
         Main entry point. Called by every Temporal activity
         before SendSlackActivity or SendWhatsAppActivity.
 
-        Returns ToneResult so callers can log jargon_replaced count
-        (useful for test assertions and for improving prompts).
+        Args:
+            llm_rewrite: If False, skip LLM call and return mechanical
+                jargon-replaced text only. Useful for fast tests.
         """
         cleaned, n_replaced = self._kill_jargon(raw_message)
-        rewritten = self._tone_rewrite(
-            cleaned, context_type, is_good_news, owner_name
-        )
 
-        if language == "hi":
-            rewritten = self._translate_hindi(rewritten)
+        if llm_rewrite:
+            rewritten = self._tone_rewrite(
+                cleaned, context_type, is_good_news, owner_name
+            )
+            if language == "hi":
+                rewritten = self._translate_hindi(rewritten)
+        else:
+            rewritten = cleaned
 
         return ToneResult(
             text=rewritten,
@@ -175,25 +193,39 @@ class ToneFilter:
             f"{name_hint}\n\n"
             f"Rewrite this message:\n\n{message}"
         )
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": TONE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            temperature=0.25,
-            max_tokens=350,
+        response = self._client.post(
+            "/chat/completions",
+            json={
+                "model": self._model,
+                "messages": [
+                    {"role": "system", "content": TONE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                "temperature": 0.25,
+            },
         )
-        return response.choices[0].message.content.strip()
+        response.raise_for_status()
+        data = response.json()
+        raw = data["choices"][0]["message"]["content"].strip()
+        try:
+            parsed = json.loads(raw)
+            text = parsed.get("text", parsed.get("rewritten", raw))
+        except json.JSONDecodeError:
+            text = raw
+        return text
 
     def _translate_hindi(self, text: str) -> str:
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": HINDI_SYSTEM_PROMPT},
-                {"role": "user", "content": text},
-            ],
-            temperature=0.15,
-            max_tokens=400,
+        response = self._client.post(
+            "/chat/completions",
+            json={
+                "model": self._model,
+                "messages": [
+                    {"role": "system", "content": HINDI_SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                "temperature": 0.15,
+            },
         )
-        return response.choices[0].message.content.strip()
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()

@@ -23,89 +23,90 @@ class TestAIQualityMetrics:
     """Tests for AI output quality metrics using DeepEval concepts."""
 
     def test_embeddings_dimension(self):
-        """Test that embeddings have correct dimensions (768 for nomic-embed-text)."""
-        from src.services.embeddings import OllamaEmbeddings
+        """Test that embeddings have correct dimensions (2048 for OpenRouter)."""
 
-        # Mock embedding vector with 768 dimensions
-        mock_embedding = [0.1] * 768
+        from src.services.embeddings import OpenRouterEmbeddings
 
-        assert len(mock_embedding) == 768
+        # Mock embedding vector with 2048 dimensions
+        mock_embedding = [0.1] * 2048
+
+        assert len(mock_embedding) == 2048
         assert all(isinstance(x, float) for x in mock_embedding)
 
     def test_cosine_similarity_identical(self):
         """Test cosine similarity of identical vectors returns 1.0."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         vec = [0.1, 0.2, 0.3, 0.4]
-        similarity = OllamaEmbeddings.cosine_similarity(vec, vec)
+        similarity = OpenRouterEmbeddings.cosine_similarity(vec, vec)
 
         assert pytest.approx(similarity, rel=1e-6) == 1.0
 
     def test_cosine_similarity_opposite(self):
         """Test cosine similarity of opposite vectors returns -1.0."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         vec1 = [1.0, 0.0, 0.0]
         vec2 = [-1.0, 0.0, 0.0]
-        similarity = OllamaEmbeddings.cosine_similarity(vec1, vec2)
+        similarity = OpenRouterEmbeddings.cosine_similarity(vec1, vec2)
 
         assert pytest.approx(similarity, rel=1e-6) == -1.0
 
     def test_cosine_similarity_orthogonal(self):
         """Test cosine similarity of orthogonal vectors returns 0.0."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         vec1 = [1.0, 0.0, 0.0]
         vec2 = [0.0, 1.0, 0.0]
-        similarity = OllamaEmbeddings.cosine_similarity(vec1, vec2)
+        similarity = OpenRouterEmbeddings.cosine_similarity(vec1, vec2)
 
         assert pytest.approx(similarity, rel=1e-6) == 0.0
 
     def test_cosine_similarity_different_dimensions(self):
         """Test cosine similarity raises error for different dimensions."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         vec1 = [1.0, 2.0, 3.0]
         vec2 = [1.0, 2.0]
 
         with pytest.raises(ValueError, match="dimensions must match"):
-            OllamaEmbeddings.cosine_similarity(vec1, vec2)
+            OpenRouterEmbeddings.cosine_similarity(vec1, vec2)
 
     def test_euclidean_distance_zero(self):
         """Test Euclidean distance of identical vectors returns 0."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         vec = [3.0, 4.0]
-        distance = OllamaEmbeddings.euclidean_distance(vec, vec)
+        distance = OpenRouterEmbeddings.euclidean_distance(vec, vec)
 
         assert pytest.approx(distance, abs=1e-6) == 0.0
 
     def test_euclidean_distance_common(self):
         """Test Euclidean distance calculation."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
         # Distance between (0,0) and (3,4) should be 5
         vec1 = [0.0, 0.0]
         vec2 = [3.0, 4.0]
-        distance = OllamaEmbeddings.euclidean_distance(vec1, vec2)
+        distance = OpenRouterEmbeddings.euclidean_distance(vec1, vec2)
 
         assert pytest.approx(distance, abs=1e-6) == 5.0
 
 
 class TestEmbeddingsService:
-    """Tests for the OllamaEmbeddings service."""
+    """Tests for the OpenRouterEmbeddings service."""
 
     @pytest.mark.asyncio
     async def test_embed_success(self):
         """Test successful embedding generation."""
-        from src.services.embeddings import OllamaEmbeddings, EmbeddingResult
+        from src.services.embeddings import OpenRouterEmbeddings, EmbeddingResult
 
-        service = OllamaEmbeddings()
+        service = OpenRouterEmbeddings()
 
         # Mock HTTP response
         mock_response = {
             "data": [{
-                "embedding": [0.1] * 768,
+                "embedding": [0.1] * 2048,
                 "index": 0
             }],
             "usage": {
@@ -124,8 +125,8 @@ class TestEmbeddingsService:
             result = await service.embed("Test text")
 
             assert isinstance(result, EmbeddingResult)
-            assert len(result.embedding) == 768
-            assert result.model == "nomic-embed-text"
+            assert len(result.embedding) == 2048
+            assert result.model == "nvidia/llama-nemotron-embed-vl-1b-v2:free"
             assert result.tokens == 100
 
         await service.close()
@@ -133,9 +134,9 @@ class TestEmbeddingsService:
     @pytest.mark.asyncio
     async def test_embed_http_error(self):
         """Test embedding generation with HTTP error."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
-        service = OllamaEmbeddings()
+        service = OpenRouterEmbeddings()
 
         with patch.object(service, "_get_client") as mock_get_client:
             mock_client = AsyncMock()
@@ -150,17 +151,17 @@ class TestEmbeddingsService:
     @pytest.mark.asyncio
     async def test_embed_batch(self):
         """Test batch embedding generation."""
-        from src.services.embeddings import OllamaEmbeddings, EmbeddingResult
+        from src.services.embeddings import OpenRouterEmbeddings, EmbeddingResult
 
-        service = OllamaEmbeddings()
+        service = OpenRouterEmbeddings()
 
         texts = ["Text 1", "Text 2", "Text 3"]
 
         with patch.object(service, "embed", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = EmbeddingResult(
-                embedding=[0.1] * 768,
-                model="nomic-embed-text",
-                dimensions=768,
+                embedding=[0.1] * 2048,
+                model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+                dimensions=2048,
                 tokens=10,
             )
 
@@ -192,21 +193,21 @@ class TestDuplicateDetection:
     @pytest.mark.asyncio
     async def test_is_duplicate_below_threshold(self):
         """Test duplicate detection when similarity is below threshold."""
-        from src.services.embeddings import OllamaEmbeddings, SimilarityResult
+        from src.services.embeddings import OpenRouterEmbeddings, SimilarityResult
 
-        service = OllamaEmbeddings()
+        service = OpenRouterEmbeddings()
 
         with patch.object(service, "embed", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = MagicMock(
-                embedding=[0.1] * 768,
-                model="nomic-embed-text",
-                dimensions=768,
+                embedding=[0.1] * 2048,
+                model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+                dimensions=2048,
             )
 
             result = await service.is_duplicate(
                 text="This is new feedback",
                 # Use orthogonal vectors (near-zero similarity)
-                existing_embeddings=[("id1", [1.0 if i == 0 else 0.0 for i in range(768)])],
+                existing_embeddings=[("id1", [1.0 if i == 0 else 0.0 for i in range(2048)])],
                 threshold=0.85,
             )
 
@@ -217,13 +218,13 @@ class TestDuplicateDetection:
     @pytest.mark.asyncio
     async def test_find_similar_empty_candidates(self):
         """Test finding similar items with empty candidates list."""
-        from src.services.embeddings import OllamaEmbeddings
+        from src.services.embeddings import OpenRouterEmbeddings
 
-        service = OllamaEmbeddings()
+        service = OpenRouterEmbeddings()
 
         with patch.object(service, "embed", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = MagicMock(
-                embedding=[0.1] * 768,
+                embedding=[0.1] * 2048,
             )
 
             results = await service.find_similar(
@@ -242,15 +243,15 @@ class TestEmbeddingResult:
         from src.services.embeddings import EmbeddingResult
 
         result = EmbeddingResult(
-            embedding=[0.1] * 768,
-            model="nomic-embed-text",
-            dimensions=768,
+            embedding=[0.1] * 2048,
+            model="nvidia/llama-nemotron-embed-vl-1b-v2:free",
+            dimensions=2048,
             tokens=100,
         )
 
         assert result.embedding is not None
-        assert result.model == "nomic-embed-text"
-        assert result.dimensions == 768
+        assert result.model == "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+        assert result.dimensions == 2048
         assert result.tokens == 100
 
     def test_embedding_result_serialization(self):

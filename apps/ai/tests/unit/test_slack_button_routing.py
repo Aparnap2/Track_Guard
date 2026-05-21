@@ -1,5 +1,6 @@
 """Tests for Slack Block Kit button routing - TDD Red phase."""
 import pytest
+from src.integrations.slack_buttons import route_slack_button
 
 
 class TestSlackButtonRouting:
@@ -7,7 +8,6 @@ class TestSlackButtonRouting:
 
     def test_acknowledged_button_routes_to_reflector(self):
         """Acknowledged button should trigger +1.0 feedback signal."""
-        from src.integrations.slack_buttons import route_slack_button
         
         payload = {
             "actions": [{"name": "acknowledge", "value": "alert_123"}],
@@ -20,8 +20,6 @@ class TestSlackButtonRouting:
 
     def test_dispute_button_routes_to_reflector(self):
         """Dispute button should trigger -1.0 feedback signal."""
-        from src.integrations.slack_buttons import route_slack_button
-        
         payload = {
             "actions": [{"name": "dispute", "value": "alert_123"}],
             "user": {"id": "U123"},
@@ -33,8 +31,6 @@ class TestSlackButtonRouting:
 
     def test_unknown_button_returns_error(self):
         """Unknown button type should return error gracefully."""
-        from src.integrations.slack_buttons import route_slack_button
-        
         payload = {
             "actions": [{"name": "unknown_action", "value": "alert_123"}],
             "user": {"id": "U123"},
@@ -45,8 +41,6 @@ class TestSlackButtonRouting:
 
     def test_no_actions_returns_error(self):
         """Empty actions should return error."""
-        from src.integrations.slack_buttons import route_slack_button
-        
         payload = {
             "actions": [],
             "user": {"id": "U123"},
@@ -57,8 +51,6 @@ class TestSlackButtonRouting:
 
     def test_show_breakdown_action(self):
         """Show breakdown button should return breakdown text."""
-        from src.integrations.slack_buttons import route_slack_button
-        
         payload = {
             "actions": [{"name": "show_breakdown", "value": "alert_456"}],
             "user": {"id": "U123"},
@@ -70,8 +62,6 @@ class TestSlackButtonRouting:
 
     def test_log_decision_action(self):
         """Log decision button should return confirmation."""
-        from src.integrations.slack_buttons import route_slack_button
-        
         payload = {
             "actions": [{"name": "log_decision", "value": "decision_789"}],
             "user": {"id": "U123"},

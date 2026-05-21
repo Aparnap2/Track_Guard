@@ -7,34 +7,27 @@ These tests require OPENAI_API_KEY and LANGFUSE_SECRET_KEY.
 import os
 import pytest
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()  # Load .env for OLLAMA_BASE_URL, OLLAMA_API_KEY, etc.
+
+from ollama import Client as _OllamaClient
 
 
 @pytest.fixture(scope="session")
-def openai_client():
-    """Real OpenAI-compatible client for health checks (supports Ollama, Groq, Azure)."""
-    import openai
-    
-    # Check if Ollama is configured
-    if os.environ.get("OLLAMA_BASE_URL"):
-        base_url = os.environ["OLLAMA_BASE_URL"]
-        # Cloud uses https://ollama.com, local uses http://localhost:11434
-        # Add /v1 suffix for OpenAI-compatible SDK
-        if not base_url.endswith("/v1"):
-            base_url = base_url.rstrip("/")
-            if "/api" in base_url:
-                base_url = base_url.replace("/api", "/v1")
-            elif not "/v1" in base_url:
-                base_url = base_url + "/v1"
-        return openai.OpenAI(
-            base_url=base_url,
-            api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
-        )
-    
-    # Fallback to original behavior for OpenAI/Azure/Groq
-    return openai.OpenAI(
-        base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        api_key=os.environ.get("OPENAI_API_KEY", "dummy-key"),
-    )
+def ollama_client():
+    """Real Ollama Client — uses OLLAMA_BASE_URL + OLLAMA_API_KEY from .env."""
+    import os
+    base_url = os.environ.get("OLLAMA_BASE_URL", "https://ollama.com")
+    api_key = os.environ.get("OLLAMA_API_KEY", "")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    return _OllamaClient(host=base_url, headers=headers)
+
+
+@pytest.fixture(scope="session")
+def llm_model():
+    """Model name — reads OLLAMA_CHAT_MODEL from .env."""
+    import os
+    return os.environ.get("OLLAMA_CHAT_MODEL", "qwen3-next:80b-cloud")
 
 
 @pytest.fixture(scope="session")
@@ -43,15 +36,6 @@ def langfuse_client():
     from langfuse import Langfuse
     # New Langfuse SDK auto-reads env vars: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_HOST
     return Langfuse()
-
-
-@pytest.fixture(scope="session")
-def llm_model():
-    """LLM model to use for agentic tests."""
-    # For Ollama, use OLLAMA_CHAT_MODEL if set, otherwise fallback
-    if os.environ.get("OLLAMA_BASE_URL"):
-        return os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:0.6b")
-    return os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
 
 @pytest.fixture

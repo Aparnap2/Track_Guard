@@ -50,26 +50,26 @@ class TestFinancePatterns:
         assert not any(p.id == "FG-03" for p in matched)
 
     def test_fg04_detects_runway_compression(self, detector):
-        """FG-04: Runway <6 months triggers."""
-        signals = {"runway_months": 4}
+        """FG-04: Runway compression with burning acceleration."""
+        signals = {"burn_rate": 15000, "prev_burn_rate": 12000, "runway_days": 180}
         matched = detector.run(signals)
         assert any(p.id == "FG-04" for p in matched)
 
     def test_fg04_no_false_positive(self, detector):
-        """FG-04: Runway >=6 months should NOT trigger."""
-        signals = {"runway_months": 10}
+        """FG-04: No acceleration and good runway should NOT trigger."""
+        signals = {"burn_rate": 10000, "prev_burn_rate": 10000, "runway_days": 365}
         matched = detector.run(signals)
         assert not any(p.id == "FG-04" for p in matched)
 
     def test_fg05_detects_failed_payment_cluster(self, detector):
-        """FG-05: Payment failures >2% triggers."""
-        signals = {"failed_payment_pct": 4.5}
+        """FG-05: 3+ failed payments in 7 days triggers."""
+        signals = {"failed_payments_7d": 5}
         matched = detector.run(signals)
         assert any(p.id == "FG-05" for p in matched)
 
     def test_fg05_no_false_positive(self, detector):
-        """FG-05: Payment failures <=2% should NOT trigger."""
-        signals = {"failed_payment_pct": 1.5}
+        """FG-05: <3 failed payments should NOT trigger."""
+        signals = {"failed_payments_7d": 2}
         matched = detector.run(signals)
         assert not any(p.id == "FG-05" for p in matched)
 
@@ -95,13 +95,13 @@ class TestBusinessInsightPatterns:
 
     def test_bg01_detects_leaky_bucket(self, detector):
         """BG-01: Activation <40% + MRR growth = leaky bucket."""
-        signals = {"new_signups": 100, "activation_rate": 30, "mrr_growth_pct": 10}
+        signals = {"new_signups": 100, "activation_rate": 0.30, "mrr_growth_pct": 10}
         matched = detector.run(signals)
         assert any(p.id == "BG-01" for p in matched)
 
     def test_bg01_no_false_positive(self, detector):
         """BG-01: Activation >=40% should NOT trigger."""
-        signals = {"new_signups": 100, "activation_rate": 55, "mrr_growth_pct": 10}
+        signals = {"new_signups": 100, "activation_rate": 0.55, "mrr_growth_pct": 10}
         matched = detector.run(signals)
         assert not any(p.id == "BG-01" for p in matched)
 
@@ -129,49 +129,49 @@ class TestBusinessInsightPatterns:
 
     def test_bg03_detects_feature_adoption_drop(self, detector):
         """BG-03: Feature adoption drop post-deploy."""
-        signals = {"feature_adoption_pct_before": 60, "feature_adoption_pct_after": 35}
+        signals = {"feature_name": "export", "adoption_pre_deploy": 0.60, "adoption_post_deploy": 0.35}
         matched = detector.run(signals)
         assert any(p.id == "BG-03" for p in matched)
 
     def test_bg03_no_false_positive(self, detector):
         """BG-03: Healthy adoption should NOT trigger."""
-        signals = {"feature_adoption_pct_before": 60, "feature_adoption_pct_after": 58}
+        signals = {"feature_name": "export", "adoption_pre_deploy": 0.60, "adoption_post_deploy": 0.58}
         matched = detector.run(signals)
         assert not any(p.id == "BG-03" for p in matched)
 
     def test_bg04_detects_cohort_degradation(self, detector):
         """BG-04: Cohort retention degrades >10%."""
-        signals = {"cohort_retention_current": 65, "cohort_retention_previous": 85}
+        signals = {"cohort_retention_30d_recent": 0.65, "cohort_retention_30d_prior": 0.85}
         matched = detector.run(signals)
         assert any(p.id == "BG-04" for p in matched)
 
     def test_bg04_no_false_positive(self, detector):
         """BG-04: Healthy retention should NOT trigger."""
-        signals = {"cohort_retention_current": 80, "cohort_retention_previous": 82}
+        signals = {"cohort_retention_30d_recent": 0.80, "cohort_retention_30d_prior": 0.82}
         matched = detector.run(signals)
         assert not any(p.id == "BG-04" for p in matched)
 
     def test_bg05_detects_nrr_below_100(self, detector):
         """BG-05: NRR <100% at seed = contraction."""
-        signals = {"nrr_pct": 90}
+        signals = {"nrr": 90}
         matched = detector.run(signals)
         assert any(p.id == "BG-05" for p in matched)
 
     def test_bg05_no_false_positive(self, detector):
         """BG-05: NRR >=100% should NOT trigger."""
-        signals = {"nrr_pct": 115}
+        signals = {"nrr": 115}
         matched = detector.run(signals)
         assert not any(p.id == "BG-05" for p in matched)
 
     def test_bg06_detects_trial_activation_wall(self, detector):
-        """BG-06: Trial activation <20% triggers."""
-        signals = {"trial_activation_rate_pct": 12}
+        """BG-06: Trial step with >50% drop triggers."""
+        signals = {"trial_step_dropoffs": [{"step": "onboarding", "drop_pct": 0.60}]}
         matched = detector.run(signals)
         assert any(p.id == "BG-06" for p in matched)
 
     def test_bg06_no_false_positive(self, detector):
-        """BG-06: Trial activation >=20% should NOT trigger."""
-        signals = {"trial_activation_rate_pct": 30}
+        """BG-06: No step >50% drop should NOT trigger."""
+        signals = {"trial_step_dropoffs": [{"step": "onboarding", "drop_pct": 0.30}]}
         matched = detector.run(signals)
         assert not any(p.id == "BG-06" for p in matched)
 
@@ -184,14 +184,14 @@ class TestOpsPatterns:
         return GuardianDetector()
 
     def test_og01_detects_error_rate_spike(self, detector):
-        """OG-01: Error rate >5% triggers."""
-        signals = {"error_pct": 8.5, "errors_by_segment": [{"error_pct": 8.5}]}
+        """OG-01: Error rate >10% in a segment triggers."""
+        signals = {"errors_by_segment": [{"segment": "free_users", "error_pct": 0.15}]}
         matched = detector.run(signals)
         assert any(p.id == "OG-01" for p in matched)
 
     def test_og01_no_false_positive(self, detector):
-        """OG-01: Error rate <=5% should NOT trigger."""
-        signals = {"error_pct": 2.0, "errors_by_segment": [{"error_pct": 2.0}]}
+        """OG-01: All segments <=10% error rate should NOT trigger."""
+        signals = {"errors_by_segment": [{"segment": "free_users", "error_pct": 0.05}]}
         matched = detector.run(signals)
         assert not any(p.id == "OG-01" for p in matched)
 
@@ -299,9 +299,9 @@ class TestEdgeCases:
             "net_new_arr": 10000,
             "top_customer_mrr": 1000,
             "total_mrr": 20000,
-            "runway_months": 12,
+            "runway_days": 365,
             "new_signups": 100,
-            "activation_rate": 60,
+            "activation_rate": 0.60,
             "error_pct": 1.0,
         }
         matched = detector.run(signals)

@@ -43,61 +43,63 @@ class TestPydanticModels:
 
     def test_invalid_qdrant_url(self):
         """Test that invalid URL format is handled gracefully."""
-        # URLs are strings in Pydantic, validation is at usage time
         qdrant = QdrantConfig(url="not-a-url")
-        assert qdrant.url == "not-a-url"  # Just stores the string
+        assert qdrant.url == "not-a-url"
 
 
 class TestMockedLLMIntegration:
     """Integration tests using mocked LLM responses."""
 
     @pytest.fixture
-    def mock_openai_client(self):
-        """Create a mocked OpenAI client."""
+    def mock_ollama_client(self):
+        """Create a mocked Ollama client with dict-style responses."""
         client = MagicMock()
-        client.chat.completions.create = AsyncMock()
+        client.chat = AsyncMock()
         return client
 
     @pytest.mark.asyncio
-    async def test_llm_response_parsing(self, mock_openai_client):
+    async def test_llm_response_parsing(self, mock_ollama_client):
         """Test that LLM responses are correctly parsed."""
-        # Simulate LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """type: bug
+        mock_response = {
+            "message": {
+                "content": """type: bug
 severity: high
 confidence: 0.95
 reasoning: User reported a critical crash"""
-        mock_openai_client.chat.completions.create.return_value = mock_response
+            }
+        }
+        mock_ollama_client.chat.return_value = mock_response
 
-        # Call the mocked client
-        response = await mock_openai_client.chat.completions.create(
+        response = await mock_ollama_client.chat(
             model="test-model",
-            messages=[{"role": "user", "content": "Test feedback"}]
+            messages=[{"role": "user", "content": "Test feedback"}],
+            options={"num_predict": 100},
         )
 
-        # Verify response parsing
-        content = response.choices[0].message.content
+        content = response["message"]["content"]
         assert "type: bug" in content
         assert "severity: high" in content
 
     @pytest.mark.asyncio
-    async def test_feature_request_parsing(self, mock_openai_client):
+    async def test_feature_request_parsing(self, mock_ollama_client):
         """Test parsing feature request responses."""
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = """type: feature
+        mock_response = {
+            "message": {
+                "content": """type: feature
 severity: low
 confidence: 0.88
 reasoning: User wants new functionality"""
-        mock_openai_client.chat.completions.create.return_value = mock_response
+            }
+        }
+        mock_ollama_client.chat.return_value = mock_response
 
-        response = await mock_openai_client.chat.completions.create(
+        response = await mock_ollama_client.chat(
             model="test-model",
-            messages=[{"role": "user", "content": "I want dark mode"}]
+            messages=[{"role": "user", "content": "I want dark mode"}],
+            options={"num_predict": 100},
         )
 
-        content = response.choices[0].message.content
+        content = response["message"]["content"]
         assert "type: feature" in content
 
 
@@ -114,7 +116,6 @@ class TestFeedbackClassification:
     ])
     def test_classification_keywords(self, feedback, expected_type):
         """Test that classification works based on keyword detection."""
-        # Simple keyword-based classification for testing
         bug_keywords = ["crash", "error", "bug", "doesn't work", "broken"]
         feature_keywords = ["add", "want", "would be nice", "support", "feature"]
         question_keywords = ["how", "what", "?", "where", "when"]
@@ -169,7 +170,6 @@ class TestIssueSpecGeneration:
         ]
 
         for feedback, expected_prefix in test_cases:
-            # Simple title generation logic
             if "crash" in feedback.lower():
                 title = f"Fix {feedback.lower().split('crash')[0].strip()} crash"
             elif "add" in feedback.lower() or "dark mode" in feedback.lower():
@@ -177,7 +177,6 @@ class TestIssueSpecGeneration:
             else:
                 title = f"Address: {feedback[:50]}"
 
-            # Just verify title is generated
             assert len(title) > 0
             assert len(title) <= 120
 

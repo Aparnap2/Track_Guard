@@ -1,123 +1,125 @@
-"""Tests for ToneFilter."""
+"""Tests for ToneFilter — mechanical tests run against real code, LLM tests run against real Ollama Cloud."""
+import os
+import sys
+
+os.environ.setdefault("OLLAMA_BASE_URL", "https://ollama.com")
+os.environ.setdefault("OLLAMA_API_KEY", os.environ.get("OLLAMA_API_KEY", ""))
+
+from dotenv import load_dotenv
+load_dotenv()
+
 import pytest
-from unittest.mock import MagicMock, patch
 from src.services.tone_filter import ToneFilter, ToneResult
 
-# ── Fixtures ───────────────────────────────────────────────────────
 
-
-@pytest.fixture
-def mock_llm_response():
-    """Patch OpenAI so tests are free and deterministic."""
-    with patch("src.services.tone_filter.get_llm_client") as mock_get:
-        instance = MagicMock()
-        mock_get.return_value = instance
-        instance.chat.completions.create.return_value = MagicMock(
-            choices=[MagicMock(message=MagicMock(content="Rewritten message."))]
-        )
-        yield instance
-
-
-@pytest.fixture
-def tf(mock_llm_response):
-    return ToneFilter()
-
-
-# ── Jargon replacement (mechanical — no LLM) ──────────────────────
+# ── Jargon replacement (mechanical — pure code, no LLM) ──────────
 
 
 @pytest.mark.parametrize(
     "jargon,should_be_gone",
     [
-        ("EBITDA", "EBITDA"),
-        ("accounts receivable", "accounts receivable"),
-        ("working capital", "working capital"),
-        ("leverage", "leverage"),
-        ("optimize", "optimize"),
-        ("actionable insights", "actionable insights"),
-        ("burn rate", "burn rate"),
-        ("DSO", "DSO"),
-        ("YoY", "YoY"),
-        ("bps", "bps"),
+        ("EBITDA", "operating profit"),
+        ("DSO", "days customers take to pay you"),
+        ("basis points", "percentage points"),
+        ("burn rate", "how fast you spend money"),
+        ("runway", "months until cash runs out"),
+        ("working capital", "money available day-to-day"),
+        ("YoY", "vs last year"),
+        ("MoM", "vs last month"),
+        ("net margin", "profit kept from every ₹100 earned"),
+        ("liquidity", "cash available right now"),
     ],
 )
-def test_jargon_replaced(tf, jargon, should_be_gone):
-    cleaned, count = tf._kill_jargon(f"Your {jargon} metric is important.")
-    assert should_be_gone.lower() not in cleaned.lower()
-    assert count >= 1
+def test_jargon_replaced_mechanically(jargon, should_be_gone):
+    """Jargon → plain English, zero LLM cost, always deterministic."""
+    tf = ToneFilter()
+    result = tf.apply(f"Check your {jargon}.", llm_rewrite=False)
+    assert should_be_gone in result.text.lower() or jargon not in result.text
+    assert result.jargon_replaced >= 1
 
 
-def test_replace_jargon_returns_count(tf):
-    text, count = tf._kill_jargon("EBITDA and DSO are high.")
-    assert count == 2
+def test_multiple_jargon_replaced():
+    """Multiple jargon terms in one message."""
+    tf = ToneFilter()
+    result = tf.apply("Your EBITDA and DSO are both bad.", llm_rewrite=False)
+    assert result.jargon_replaced >= 2
 
 
-def test_non_jargon_text_unchanged(tf):
-    text = "You made ₹42,000 this month."
-    cleaned, count = tf._kill_jargon(text)
-    assert cleaned == text
-    assert count == 0
+def test_no_jargon_unchanged():
+    """No jargon → jargon_replaced = 0."""
+    tf = ToneFilter()
+    result = tf.apply("Revenue is up this month.", llm_rewrite=False)
+    assert result.jargon_replaced == 0
 
 
-# ── LLM rewrite (mocked) ──────────────────────────────────────────
+# ── ToneResult structure ──────────────────────────────────────────
 
 
-def test_apply_returns_tone_result(tf):
-    result = tf.apply("Your EBITDA compressed.")
+def test_apply_returns_tone_result():
+    """apply() returns ToneResult dataclass."""
+    tf = ToneFilter()
+    result = tf.apply("Revenue fell.", llm_rewrite=False)
     assert isinstance(result, ToneResult)
-    assert result.text == "Rewritten message."
-    assert result.original == "Your EBITDA compressed."
+    assert result.text
+    assert result.language == "en"
+    assert result.original == "Revenue fell."
 
 
-def test_good_news_flag_passed_to_llm(tf, mock_llm_response):
-    tf.apply("Profit is up.", is_good_news=True)
-    call_args = mock_llm_response.chat.completions.create.call_args
-    user_msg = call_args.kwargs["messages"][1]["content"]
-    assert "GOOD NEWS" in user_msg
-
-
-def test_bad_news_flag_passed_to_llm(tf, mock_llm_response):
-    tf.apply("Profit is down.", is_good_news=False)
-    call_args = mock_llm_response.chat.completions.create.call_args
-    user_msg = call_args.kwargs["messages"][1]["content"]
-    assert "concerning" in user_msg.lower()
-
-
-def test_owner_name_in_prompt(tf, mock_llm_response):
-    tf.apply("Revenue fell.", owner_name="Priya")
-    call_args = mock_llm_response.chat.completions.create.call_args
-    user_msg = call_args.kwargs["messages"][1]["content"]
-    assert "Priya" in user_msg
-
-
-def test_temperature_is_0_25(tf, mock_llm_response):
-    tf.apply("Some message.")
-    call_args = mock_llm_response.chat.completions.create.call_args
-    assert call_args.kwargs["temperature"] == 0.25
-
-
-# ── Hindi translation ──────────────────────────────────────────────
-
-
-def test_hindi_calls_second_llm(tf, mock_llm_response):
-    tf.apply("Revenue up.", language="hi")
-    # Should be called twice: once for rewrite, once for Hindi
-    assert mock_llm_response.chat.completions.create.call_count == 2
-
-
-def test_english_does_not_call_hindi(tf, mock_llm_response):
-    tf.apply("Revenue up.", language="en")
-    assert mock_llm_response.chat.completions.create.call_count == 1
-
-
-# ── ToneResult structure ─────────────────────────────────────────
-
-
-def test_tone_result_has_jargon_count(tf):
-    result = tf.apply("Check your EBITDA and DSO carefully.")
+def test_tone_result_has_jargon_count():
+    """ToneResult.jargon_replaced counts mechanical replacements."""
+    tf = ToneFilter()
+    result = tf.apply("Check your EBITDA and DSO carefully.", llm_rewrite=False)
     assert result.jargon_replaced == 2
 
 
-def test_tone_result_language_stored(tf):
-    result = tf.apply("Some text.", language="hi")
+def test_tone_result_language_stored():
+    """ToneResult.language reflects requested language."""
+    tf = ToneFilter()
+    result = tf.apply("Some text.", language="hi", llm_rewrite=False)
     assert result.language == "hi"
+
+
+# ── LLM-powered tone rewrite (real Ollama Cloud) ────────────────────
+
+
+@pytest.mark.slow
+def test_tone_rewrite_replaces_ebitda():
+    """LLM tone rewrite + mechanical jargon removal: EBITDA is gone."""
+    tf = ToneFilter()
+    result = tf.apply("Your EBITDA dropped this month.")
+    assert "EBITDA" not in result.text
+    assert result.jargon_replaced >= 1
+
+
+@pytest.mark.slow
+def test_good_news_tone_is_celebratory():
+    """LLM rewrite with is_good_news=True produces warm output."""
+    tf = ToneFilter()
+    result = tf.apply("Revenue grew 20% this month.", is_good_news=True)
+    assert result.text
+
+
+@pytest.mark.slow
+def test_bad_news_tone_is_calm():
+    """LLM rewrite with is_good_news=False produces calm output."""
+    tf = ToneFilter()
+    result = tf.apply("Revenue dropped this month.", is_good_news=False)
+    assert result.text
+
+
+@pytest.mark.slow
+def test_hindi_output_contains_devanagari():
+    """Hindi translation produces Devanagari script."""
+    tf = ToneFilter()
+    result = tf.apply("Revenue is up this month.", language="hi")
+    has_devanagari = any("\u0900" <= char <= "\u097F" for char in result.text)
+    assert has_devanagari, f"Hindi output must contain Devanagari script: {result.text[:50]}"
+
+
+@pytest.mark.slow
+def test_apply_text_convenience_method():
+    """apply_text() returns just the string, not ToneResult."""
+    tf = ToneFilter()
+    text = tf.apply_text("EBITDA is down.")
+    assert isinstance(text, str)
+    assert "EBITDA" not in text

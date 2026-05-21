@@ -5,7 +5,7 @@ from .llm_guard import enforce_llm_factory, scan_directory_for_violations
 from .config_module import (
     Config,
     TemporalConfig,
-    OllamaConfig,
+    OpenRouterConfig,
     QdrantConfig,
     LoggingConfig,
     TelegramConfig,
@@ -28,7 +28,7 @@ __all__ = [
     # Config classes
     "Config",
     "TemporalConfig",
-    "OllamaConfig",
+    "OpenRouterConfig",
     "QdrantConfig",
     "LoggingConfig",
     "TelegramConfig",

@@ -1,10 +1,10 @@
 """Anomaly agent graph - stub for V3.0."""
-from dataclasses import dataclass
+from typing import Any
 
 
-@dataclass
-class AnomalyGraph:
-    tenant_id: str
+def anomaly_graph(tenant_id: str) -> dict:
+    return {"tenant_id": tenant_id}
 
 
-anomaly_graph = AnomalyGraph(tenant_id="")
+def build_anomaly_graph(tenant_id: str) -> Any:
+    return anomaly_graph(tenant_id)

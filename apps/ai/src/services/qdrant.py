@@ -32,7 +32,7 @@ class QdrantService:
                 collection_name=self.config.collection,
                 vectors_config={
                     "content": {
-                        "size": 768,  # nomic-embed-text dimension
+                        "size": 2048,
                         "distance": "Cosine",
                     }
                 },
@@ -42,22 +42,22 @@ class QdrantService:
         self._collection_initialized = True
 
     async def get_embedding(self, text: str) -> list[float]:
-        """Get embedding for text using Ollama's embeddings API.
+        """Get embedding for text using OpenRouter's embeddings API.
 
         Args:
             text: Text to embed
 
         Returns:
-            Embedding vector (768 dimensions)
+            Embedding vector (2048 dimensions)
         """
-        ollama_config = get_config().ollama
+        openrouter_config = config.get_config().openrouter
         import httpx
 
         async with httpx.AsyncClient(timeout=60.0) as http_client:
             response = await http_client.post(
-                f"{ollama_config.base_url}/embeddings",
+                f"{openrouter_config.base_url}/embeddings",
                 json={
-                    "model": ollama_config.embedding_model,
+                    "model": openrouter_config.embedding_model,
                     "input": text,
                 },
             )

@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.agents.anomaly.state import AnomalyState
-from src.agents.anomaly.thresholds import detect_anomaly
-from src.agents.anomaly.prompts import anomaly_explainer, anomaly_action_generator
+from src.legacy.agents.v2.anomaly.thresholds import detect_anomaly
+from src.legacy.agents.v2.anomaly.prompts import anomaly_explainer, anomaly_action_generator
 
 logger = logging.getLogger(__name__)
 

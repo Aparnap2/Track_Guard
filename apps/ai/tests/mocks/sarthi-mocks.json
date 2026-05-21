@@ -5,6 +5,88 @@
   "port": 3333,
   "routes": [
     {
+      "uuid": "health-check",
+      "documentation": "Health check endpoint for service status",
+      "method": "get",
+      "endpoint": "/health",
+      "response": {
+        "uuid": "health-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"status\": \"ok\",\n  \"service\": \"sarthi-core-mock\",\n  \"time\": \"{{timestamp}}\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "hitl-investigate",
+      "documentation": "HITL investigate endpoint for human-in-the-loop workflow",
+      "method": "post",
+      "endpoint": "/internal/hitl/investigate",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "investigate-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"action\": \"investigate\",\n  \"workflow_id\": \"{{jsonPath 'workflow_id' body}}\",\n  \"message\": \"Investigation queued for human review\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "hitl-dismiss",
+      "documentation": "HITL dismiss endpoint to dismiss an alert",
+      "method": "post",
+      "endpoint": "/internal/hitl/dismiss",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "dismiss-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"action\": \"dismiss\",\n  \"workflow_id\": \"{{jsonPath 'workflow_id' body}}\",\n  \"message\": \"Alert dismissed\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "bi-query",
+      "documentation": "BI query endpoint for natural language data queries",
+      "method": "post",
+      "endpoint": "/internal/query",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "query-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 202,
+        "body": "{\n  \"ok\": true,\n  \"workflow_id\": \"wf-{{uuid}}\",\n  \"query_id\": \"q-{{uuid}}\",\n  \"message\": \"Query accepted for async processing\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
       "uuid": "slack-events-webhook",
       "documentation": "Slack Events API webhook receiver for URL verification and message events",
       "method": "post",
@@ -99,6 +181,48 @@
         "latency": 0,
         "statusCode": 200,
         "body": "{\n  \"ok\": true,\n  \"delivered\": true,\n  \"message_id\": \"mock-msg-001\",\n  \"delivered_at\": \"2026-04-27T12:00:00Z\"\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "telegram-send-message",
+      "documentation": "Telegram sendMessage API for sending text messages",
+      "method": "post",
+      "endpoint": "/bot:test-token/sendMessage",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "telegram-msg-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"result\": {\n    \"message_id\": 1,\n    \"chat\": {\n      \"id\": {{jsonPath 'chat_id' body}},\n      \"type\": \"private\"\n    },\n    \"text\": \"{{jsonPath 'text' body}}\"\n  }\n}",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "uuid": "telegram-send-photo",
+      "documentation": "Telegram sendPhoto API for sending images",
+      "method": "post",
+      "endpoint": "/bot:test-token/sendPhoto",
+      "body": true,
+      "bodyType": "json",
+      "response": {
+        "uuid": "telegram-photo-response",
+        "labels": [],
+        "latency": 0,
+        "statusCode": 200,
+        "body": "{\n  \"ok\": true,\n  \"result\": {\n    \"message_id\": 2,\n    \"chat\": {\n      \"id\": {{jsonPath 'chat_id' body}},\n      \"type\": \"private\"\n    },\n    \"photo\": {\n      \"file_id\": \"AgACAgIAAxkBAAIB\"\n    }\n  }\n}",
         "headers": [
           {
             "key": "Content-Type",

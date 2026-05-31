@@ -8,14 +8,12 @@ import asyncpg
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from src.config.database import get_database_url
 from .trust_battery import AgentTrustProfile
 
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    f"postgresql://{os.environ.get('DB_USER','iterateswarm')}:{os.environ.get('DB_PASSWORD','iterateswarm')}@localhost:{os.environ.get('DB_PORT','5432')}/iterateswarm"
-)
+DATABASE_URL = get_database_url("iterateswarm")
 
 
 async def save_trust_profile(profile: AgentTrustProfile) -> bool:
@@ -68,6 +66,50 @@ async def save_trust_profile(profile: AgentTrustProfile) -> bool:
         return True
     except Exception as e:
         log.error(f"Failed to save trust profile: {e}")
+        return False
+
+
+async def log_trust_event(
+    tenant_id: str,
+    agent_name: str,
+    event_type: str,
+    event_data: dict,
+) -> bool:
+    """Log a trust event to feedback_events table for audit trail.
+
+    Args:
+        tenant_id: The tenant the event belongs to
+        agent_name: The agent involved
+        event_type: Type of event (rate_good, rate_bad, dispute, etc.)
+        event_data: Additional context (alert_id, score, trust_score_after, etc.)
+
+    Returns:
+        True if logged successfully, False on failure (best-effort)
+    """
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.execute(
+            """
+            INSERT INTO feedback_events (tenant_id, agent_name, event_type, event_data, created_at)
+            VALUES ($1, $2, $3, $4::jsonb, NOW())
+            """,
+            tenant_id,
+            agent_name,
+            event_type,
+            str(event_data),
+        )
+        await conn.close()
+        log.info(
+            "Trust event logged",
+            extra={
+                "tenant_id": tenant_id,
+                "agent_name": agent_name,
+                "event_type": event_type,
+            },
+        )
+        return True
+    except Exception as e:
+        log.warning(f"Failed to log trust event to DB (best-effort): {e}")
         return False
 
 

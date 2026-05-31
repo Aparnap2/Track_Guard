@@ -10,9 +10,11 @@ from typing import Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from src.config.database import get_sarthi_database_url
+
 log = logging.getLogger(__name__)
 
-DATABASE_URL = "postgresql://sarthi:sarthi@localhost:5432/sarthi"
+DATABASE_URL = get_sarthi_database_url()
 
 
 def get_db_connection():
@@ -64,7 +66,7 @@ def get_investor_relationships(tenant_id: str) -> list[dict[str, Any]]:
     cur.close()
     conn.close()
     
-    return [dict(row) for row in relationships]
+    return [dict(row) for row in results]
 
 
 def get_investor_by_id(investor_id: int) -> dict[str, Any] | None:

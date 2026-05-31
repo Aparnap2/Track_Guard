@@ -17,9 +17,11 @@ from datetime import datetime
 
 import asyncpg
 
+from src.config.database import get_database_url
+
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", f"postgresql://{os.environ.get('DB_USER','iterateswarm')}:{os.environ.get('DB_PASSWORD','iterateswarm')}@localhost:{os.environ.get('DB_PORT','5432')}/iterateswarm")
+DATABASE_URL = get_database_url("iterateswarm")
 
 
 @dataclass

@@ -8,6 +8,9 @@ TRUST_EVENT_DELTA = {
     "dispute": -0.2,
     "false_positive": -0.3,
     "schema_parse_fail": -0.1,
+    # Slack button feedback events (wired via score_from_button)
+    "rate_good": 0.05,
+    "rate_bad": -0.10,
 }
 DEGRADED_THRESHOLD = 0.4
 DEGRADED_PRIORITY = 999

@@ -1,11 +1,22 @@
-"""Anomaly agent stub."""
-from dataclasses import dataclass
+"""Anomaly agent — Charaka cross-domain anomaly checker.
 
+The Charaka roams across departments detecting inconsistencies
+between what different officers report.
+"""
+from __future__ import annotations
 
-@dataclass
-class AnomalyState:
-    tenant_id: str
+from .graph import (
+    anomaly_graph,
+    build_anomaly_graph,
+    Charaka,
+    CharakaAlert,
+)
+from .state import AnomalyState
 
-
-def anomaly_graph():
-    return None
+__all__ = [
+    "anomaly_graph",
+    "build_anomaly_graph",
+    "Charaka",
+    "CharakaAlert",
+    "AnomalyState",
+]

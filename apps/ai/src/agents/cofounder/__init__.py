@@ -5,6 +5,8 @@ This module provides the manager layer that orchestrates Employee Agents:
 - reflector.py: reads founder response, converts to score
 - curator.py: updates Graphiti playbook
 - correlation.py: cross-signal detection + synthesis
+- joint_council.py: Mantriparishad — cross-domain alert council
+- arbiter.py: Nyayadish — inter-agent conflict resolution
 
 PRD Reference: Section 789-793, 220-261
 """
@@ -12,6 +14,8 @@ from .router import Router, route_message
 from .reflector import Reflector, score_founder_response
 from .curator import Curator, update_playbook
 from .correlation import CorrelationAgent, detect_correlation
+from .joint_council import Mantriparishad, CouncilAlert
+from .arbiter import Nyayadish, ArbitrationResult
 
 __all__ = [
     "Router",
@@ -22,4 +26,8 @@ __all__ = [
     "update_playbook",
     "CorrelationAgent",
     "detect_correlation",
+    "Mantriparishad",
+    "CouncilAlert",
+    "Nyayadish",
+    "ArbitrationResult",
 ]

@@ -7,9 +7,11 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from typing import Any, Dict, List
 
+from src.config.database import get_database_url
+
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://admin:password@localhost:5433/opscore")
+DATABASE_URL = get_database_url("opscore")
 
 
 class DB:

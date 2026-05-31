@@ -3,7 +3,7 @@ Ops Watch Graph — LangGraph state machine.
 
 Per PRD Section 8: Implements Generator → Reflector → Curator loop.
 Phase 1: DATA ASSEMBLY (zero LLM) - pure Python
-Phase 2: COGNITIVE DECISION (1 LLM) - Pydantic output
+Phase 2: COGNITIVE DECISION (1 LLM) - Pydantic output via AlertDecision
 Phase 3: NARRATIVE GENERATION (1 LLM) - bounded 200 words
 
 Per PRD Section 7: Agent persona - Ops Watch monitors:
@@ -19,6 +19,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Literal
+
+from src.schemas.guardian import AlertDecision
 
 log = logging.getLogger(__name__)
 
@@ -140,30 +142,31 @@ class OpsWatchGraph:
         """Phase 2: One small LLM call with Pydantic output."""
         # TODO: Call LLM with Pydantic AI structured output
         # Input: typed dict — numbers only
-        # Output: { should_alert: bool, severity: str, primary_signal: str }
+        # Output: AlertDecision (Pydantic model)
 
-        self.state.alert_decision = {
-            "should_alert": True,
-            "severity": "warning",
-            "primary_signal": self.state.triggered_patterns[0],
-        }
+        self.state.alert_decision = AlertDecision(
+            should_alert=True,
+            severity="warning",
+            primary_signal=self.state.triggered_patterns[0],
+            context_note=f"Pattern {self.state.triggered_patterns[0]} triggered",
+        )
 
     async def _generate_narrative(self):
         """Phase 3: Bounded narrative generation."""
         # TODO: Call LLM with max_tokens=120, max 200 words
 
-        pattern = self.state.alert_decision["primary_signal"]
+        pattern = self.state.alert_decision.primary_signal
         self.state.narrative = f"Ops Alert: {pattern} triggered. Check ops dashboard for details."
 
     def get_alert(self) -> dict | None:
         """Get the alert to send to Slack."""
-        if not self.state.alert_decision or not self.state.alert_decision.get("should_alert"):
+        if not self.state.alert_decision or not self.state.alert_decision.should_alert:
             return None
 
         return {
             "agent": "Ops Watch",
-            "severity": self.state.alert_decision.get("severity", "warning"),
-            "pattern": self.state.alert_decision.get("primary_signal"),
+            "severity": self.state.alert_decision.severity,
+            "pattern": self.state.alert_decision.primary_signal,
             "narrative": self.state.narrative,
             "tenant_id": self.state.tenant_id,
             # Per PRD Section 11: Include domain fields

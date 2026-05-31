@@ -9,12 +9,16 @@ Key insight from PRD:
 - Self-activates when domain keyword is triggered
 
 V3.0: Integrates Trust Battery to skip degraded agents.
+HARD GATE: When trust_score < 0.4, agent is hard-blocked from firing.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
 
 # Import Trust Battery service
 # Lazy import to avoid circular dependencies
@@ -105,10 +109,22 @@ def _check_trust_battery(
     try:
         if tb["is_agent_degraded"](tenant_id, agent_name):
             priority = tb["get_route_priority"](tenant_id, agent_name)
+            log.warning(
+                "Trust Battery HARD-BLOCK: agent degraded, skipping",
+                extra={
+                    "domain": domain,
+                    "agent_name": agent_name,
+                    "tenant_id": tenant_id,
+                    "route_priority": priority,
+                },
+            )
             return True, f"degraded (priority: {priority})"
-    except Exception:
-        # Trust battery check failed, don't skip
-        pass
+    except Exception as exc:
+        # Trust battery check failed — remain permissive, do not block
+        log.debug(
+            "Trust Battery check unavailable, remaining permissive",
+            extra={"domain": domain, "tenant_id": tenant_id, "error": str(exc)},
+        )
 
     return False, ""
 

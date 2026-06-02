@@ -164,6 +164,36 @@
             
         </div>
 
+        <!-- Fourth Row: Business Decision Pipeline Panels -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="lg:col-span-2" hx-get="/api/business/decision-queue" hx-trigger="load" hx-swap="outerHTML">
+                <div class="flex justify-center py-12">
+                    <div class="text-center">
+                        <i class="fas fa-circle-notch fa-spin text-4xl text-amber-600 mb-4"></i>
+                        <p class="text-gray-500">Loading Decision Queue...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div hx-get="/api/business/guardrail-status" hx-trigger="load" hx-swap="outerHTML">
+                <div class="flex justify-center py-12">
+                    <div class="text-center">
+                        <i class="fas fa-circle-notch fa-spin text-4xl text-purple-600 mb-4"></i>
+                        <p class="text-gray-500">Loading Guardrail Status...</p>
+                    </div>
+                </div>
+            </div>
+            <div hx-get="/api/business/finance-risk" hx-trigger="load" hx-swap="outerHTML">
+                <div class="flex justify-center py-12">
+                    <div class="text-center">
+                        <i class="fas fa-circle-notch fa-spin text-4xl text-emerald-600 mb-4"></i>
+                        <p class="text-gray-500">Loading Finance Risk...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <!-- Footer -->

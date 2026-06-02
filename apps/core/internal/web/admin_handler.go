@@ -459,4 +459,20 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 
 	// HTMX Screen 3: LLMOps Dashboard
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)
+
+	// ── HTMX Screen 4: Business Decision Pipeline ──────────────────
+
+	// Direct business routes (HTMX accessible without admin prefix)
+	app.Get("/api/business/decision-queue", h.APIBusinessDecisionQueue)
+	app.Get("/api/business/guardrail-status", h.APIGuardrailStatus)
+	app.Get("/api/business/finance-risk", h.APIFinanceRisk)
+	app.Post("/api/business/decisions/:id/approve", h.APIBusinessDecisionApprove)
+	app.Post("/api/business/decisions/:id/reject", h.APIBusinessDecisionReject)
+
+	// Also register under admin group
+	apiGroup.Get("/business/decision-queue", h.APIBusinessDecisionQueue)
+	apiGroup.Get("/business/guardrail-status", h.APIGuardrailStatus)
+	apiGroup.Get("/business/finance-risk", h.APIFinanceRisk)
+	apiGroup.Post("/business/decisions/:id/approve", h.APIBusinessDecisionApprove)
+	apiGroup.Post("/business/decisions/:id/reject", h.APIBusinessDecisionReject)
 }

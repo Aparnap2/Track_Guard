@@ -8,6 +8,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from src.business.finance_rules import (
+    is_silent_churn_death,
+    is_burn_multiple_creep,
+    is_customer_concentration_risk,
+    is_runway_compression_acceleration,
+    is_failed_payment_cluster,
+    is_payroll_revenue_breach,
+    is_leaky_bucket_activation,
+    is_power_user_mrr_masking,
+    is_feature_adoption_drop,
+    is_cohort_retention_degradation,
+    is_nrr_below_100,
+    is_trial_activation_wall,
+    is_error_segment_correlation,
+    is_support_outpacing_growth,
+    is_cross_channel_bug_convergence,
+    is_deploy_frequency_collapse,
+    is_infra_unit_economics_divergence,
+)
+
 
 @dataclass
 class SeedStageBlindspot:
@@ -29,7 +49,7 @@ class SeedStageBlindspot:
 FG_01_SILENT_CHURN_DEATH = SeedStageBlindspot(
     id="FG-01", name="Silent Churn Death", domain="finance",
     signals_required=["monthly_churn_pct"],
-    detection_logic=lambda s: s.get("monthly_churn_pct", 0) > 0.03,
+    detection_logic=lambda s: is_silent_churn_death(monthly_churn_pct=s.get("monthly_churn_pct", 0)),
     why_it_matters=(
         "3% monthly churn is 36% annual churn. "
         "Series A investors look at annual churn. "
@@ -58,10 +78,8 @@ FG_01_SILENT_CHURN_DEATH = SeedStageBlindspot(
 FG_02_BURN_MULTIPLE_CREEP = SeedStageBlindspot(
     id="FG-02", name="Burn Multiple Creep", domain="finance",
     signals_required=["net_new_arr", "net_burn"],
-    detection_logic=lambda s: (
-        s.get("net_burn", 0) > 0 and
-        s.get("net_new_arr", 1) > 0 and
-        (s["net_burn"] / s["net_new_arr"]) > 2.0
+    detection_logic=lambda s: is_burn_multiple_creep(
+        net_burn=s.get("net_burn", 0), net_new_arr=s.get("net_new_arr", 1),
     ),
     why_it_matters=(
         "Burn multiple > 2x: you're spending $2 to make $1 of new ARR. "
@@ -86,9 +104,8 @@ FG_02_BURN_MULTIPLE_CREEP = SeedStageBlindspot(
 FG_03_CUSTOMER_CONCENTRATION = SeedStageBlindspot(
     id="FG-03", name="Customer Concentration Risk", domain="finance",
     signals_required=["top_customer_mrr", "total_mrr"],
-    detection_logic=lambda s: (
-        s.get("total_mrr", 0) > 0 and
-        (s.get("top_customer_mrr", 0) / s["total_mrr"]) > 0.30
+    detection_logic=lambda s: is_customer_concentration_risk(
+        top_customer_mrr=s.get("top_customer_mrr", 0), total_mrr=s.get("total_mrr", 0),
     ),
     why_it_matters=(
         "One customer is >30% of MRR. If they churn, you lose more "
@@ -114,10 +131,9 @@ FG_03_CUSTOMER_CONCENTRATION = SeedStageBlindspot(
 FG_04_RUNWAY_COMPRESSION = SeedStageBlindspot(
     id="FG-04", name="Runway Compression Acceleration", domain="finance",
     signals_required=["burn_rate", "prev_burn_rate", "runway_days"],
-    detection_logic=lambda s: (
-        s.get("prev_burn_rate", 0) > 0 and
-        (s.get("burn_rate", 0) / s["prev_burn_rate"]) > 1.20 and
-        s.get("runway_days", 999) < 270
+    detection_logic=lambda s: is_runway_compression_acceleration(
+        burn_rate=s.get("burn_rate", 0), prev_burn_rate=s.get("prev_burn_rate", 0),
+        runway_days=s.get("runway_days", 999),
     ),
     why_it_matters=(
         "Burn is accelerating while runway is already under 9 months. "
@@ -139,7 +155,7 @@ FG_04_RUNWAY_COMPRESSION = SeedStageBlindspot(
 FG_05_FAILED_PAYMENT_CLUSTER = SeedStageBlindspot(
     id="FG-05", name="Failed Payment Cluster", domain="finance",
     signals_required=["failed_payments_7d"],
-    detection_logic=lambda s: s.get("failed_payments_7d", 0) >= 3,
+    detection_logic=lambda s: is_failed_payment_cluster(failed_payments_7d=s.get("failed_payments_7d", 0)),
     why_it_matters=(
         "3+ failed payments in 7 days is involuntary churn in progress. "
         "Most of these customers won't update their card — they'll just leave."
@@ -164,9 +180,8 @@ FG_05_FAILED_PAYMENT_CLUSTER = SeedStageBlindspot(
 FG_06_PAYROLL_REVENUE_RATIO = SeedStageBlindspot(
     id="FG-06", name="Payroll Revenue Ratio Breach", domain="finance",
     signals_required=["payroll_monthly", "mrr"],
-    detection_logic=lambda s: (
-        s.get("mrr", 0) > 0 and
-        (s.get("payroll_monthly", 0) / s["mrr"]) > 0.60
+    detection_logic=lambda s: is_payroll_revenue_breach(
+        payroll_monthly=s.get("payroll_monthly", 0), mrr=s.get("mrr", 0),
     ),
     why_it_matters=(
         "Payroll is >60% of MRR. Classic seed-stage overhire signal. "
@@ -190,10 +205,9 @@ FG_06_PAYROLL_REVENUE_RATIO = SeedStageBlindspot(
 BG_01_LEAKY_BUCKET = SeedStageBlindspot(
     id="BG-01", name="Leaky Bucket Activation", domain="bi",
     signals_required=["new_signups", "activation_rate", "mrr_growth_pct"],
-    detection_logic=lambda s: (
-        s.get("new_signups", 0) > 0 and
-        s.get("activation_rate", 1) < 0.40 and
-        s.get("mrr_growth_pct", 0) > 0
+    detection_logic=lambda s: is_leaky_bucket_activation(
+        new_signups=s.get("new_signups", 0), activation_rate=s.get("activation_rate", 1),
+        mrr_growth_pct=s.get("mrr_growth_pct", 0),
     ),
     why_it_matters=(
         "MRR is growing but activation is failing. You are buying growth "
@@ -220,10 +234,10 @@ BG_02_POWER_USER_MASKING = SeedStageBlindspot(
     id="BG-02", name="Power User MRR Masking", domain="bi",
     signals_required=["top_10pct_mrr", "total_mrr",
                       "avg_mrr_new_customers", "avg_mrr_all_customers"],
-    detection_logic=lambda s: (
-        s.get("top_10pct_mrr", 0) / max(s.get("total_mrr", 1), 1) > 0.60 and
-        s.get("avg_mrr_new_customers", 0) <
-        s.get("avg_mrr_all_customers", 1) * 0.80
+    detection_logic=lambda s: is_power_user_mrr_masking(
+        top_10pct_mrr=s.get("top_10pct_mrr", 0), total_mrr=s.get("total_mrr", 1),
+        avg_mrr_new=s.get("avg_mrr_new_customers", 0),
+        avg_mrr_all=s.get("avg_mrr_all_customers", 1),
     ),
     why_it_matters=(
         "Your top 10% of users generate 60%+ of MRR. "
@@ -247,9 +261,9 @@ BG_02_POWER_USER_MASKING = SeedStageBlindspot(
 BG_03_FEATURE_DROP = SeedStageBlindspot(
     id="BG-03", name="Feature Adoption Post-Deploy Drop", domain="bi",
     signals_required=["feature_name", "adoption_pre_deploy", "adoption_post_deploy"],
-    detection_logic=lambda s: (
-        s.get("adoption_post_deploy", 1) <
-        s.get("adoption_pre_deploy", 0) * 0.70
+    detection_logic=lambda s: is_feature_adoption_drop(
+        adoption_pre=s.get("adoption_pre_deploy", 0),
+        adoption_post=s.get("adoption_post_deploy", 1),
     ),
     why_it_matters=(
         "You shipped something and usage dropped. "
@@ -271,9 +285,9 @@ BG_03_FEATURE_DROP = SeedStageBlindspot(
 BG_04_COHORT_RETENTION = SeedStageBlindspot(
     id="BG-04", name="Cohort Retention Degradation", domain="bi",
     signals_required=["cohort_retention_30d_recent", "cohort_retention_30d_prior"],
-    detection_logic=lambda s: (
-        s.get("cohort_retention_30d_recent", 1) <
-        s.get("cohort_retention_30d_prior", 0) * 0.90
+    detection_logic=lambda s: is_cohort_retention_degradation(
+        recent_retention=s.get("cohort_retention_30d_recent", 1),
+        prior_retention=s.get("cohort_retention_30d_prior", 0),
     ),
     why_it_matters=(
         "New cohorts are retaining 10%+ worse than prior cohorts. "
@@ -301,7 +315,7 @@ BG_04_COHORT_RETENTION = SeedStageBlindspot(
 BG_05_NRR_BELOW_100 = SeedStageBlindspot(
     id="BG-05", name="NRR Below 100 at Seed", domain="bi",
     signals_required=["nrr"],
-    detection_logic=lambda s: s.get("nrr", 100) < 100,
+    detection_logic=lambda s: is_nrr_below_100(nrr=s.get("nrr", 100)),
     why_it_matters=(
         "NRR < 100% means you're losing more than you're expanding. "
         "You have no land-and-expand motion. "
@@ -326,9 +340,8 @@ BG_05_NRR_BELOW_100 = SeedStageBlindspot(
 BG_06_TRIAL_WALL = SeedStageBlindspot(
     id="BG-06", name="Trial Activation Wall", domain="bi",
     signals_required=["trial_step_dropoffs"],
-    detection_logic=lambda s: (
-        any(step["drop_pct"] > 0.50 for step in
-            s.get("trial_step_dropoffs", []))
+    detection_logic=lambda s: is_trial_activation_wall(
+        trial_step_dropoffs=s.get("trial_step_dropoffs", []),
     ),
     why_it_matters=(
         "More than 50% of trial users are abandoning at one specific step. "
@@ -353,9 +366,8 @@ BG_06_TRIAL_WALL = SeedStageBlindspot(
 OG_01_ERROR_SEGMENT = SeedStageBlindspot(
     id="OG-01", name="Error Rate User Segment Correlation", domain="ops",
     signals_required=["errors_by_segment"],
-    detection_logic=lambda s: (
-        any(seg["error_pct"] > 0.10 for seg in
-            s.get("errors_by_segment", []))
+    detection_logic=lambda s: is_error_segment_correlation(
+        errors_by_segment=s.get("errors_by_segment", []),
     ),
     why_it_matters=(
         "Errors are concentrated in one user segment. "
@@ -379,9 +391,9 @@ OG_01_ERROR_SEGMENT = SeedStageBlindspot(
 OG_02_SUPPORT_GROWTH = SeedStageBlindspot(
     id="OG-02", name="Support Volume Outpacing Growth", domain="ops",
     signals_required=["support_tickets_growth_pct", "user_growth_pct"],
-    detection_logic=lambda s: (
-        s.get("support_tickets_growth_pct", 0) >
-        s.get("user_growth_pct", 0) * 1.5
+    detection_logic=lambda s: is_support_outpacing_growth(
+        support_growth_pct=s.get("support_tickets_growth_pct", 0),
+        user_growth_pct=s.get("user_growth_pct", 0),
     ),
     why_it_matters=(
         "Support is growing 1.5x faster than users. "
@@ -407,9 +419,8 @@ OG_02_SUPPORT_GROWTH = SeedStageBlindspot(
 OG_03_CROSS_CHANNEL_BUG = SeedStageBlindspot(
     id="OG-03", name="Cross-Channel Bug Convergence", domain="ops",
     signals_required=["bug_mentions_by_channel"],
-    detection_logic=lambda s: (
-        sum(1 for ch in s.get("bug_mentions_by_channel", {}).values()
-            if ch > 0) >= 3
+    detection_logic=lambda s: is_cross_channel_bug_convergence(
+        bug_mentions_by_channel=s.get("bug_mentions_by_channel", {}),
     ),
     why_it_matters=(
         "The same bug is being reported across 3+ channels simultaneously. "
@@ -432,12 +443,9 @@ OG_03_CROSS_CHANNEL_BUG = SeedStageBlindspot(
 OG_04_DEPLOY_COLLAPSE = SeedStageBlindspot(
     id="OG-04", name="Deploy Frequency Collapse", domain="ops",
     signals_required=["deploys_this_month", "deploys_last_month"],
-    detection_logic=lambda s: (
-        "deploys_this_month" in s and  # Signal must exist (not defaulted)
-        "deploys_last_month" in s and  # Signal must exist (not defaulted)
-        s.get("deploys_last_month", 1) > 0 and
-        s.get("deploys_this_month", 0) <
-        s.get("deploys_last_month", 1) * 0.50
+    detection_logic=lambda s: is_deploy_frequency_collapse(
+        deploys_this_month=s.get("deploys_this_month", 0),
+        deploys_last_month=s.get("deploys_last_month", 0),
     ),
     why_it_matters=(
         "Deploy frequency dropped >50% MoM. "
@@ -461,9 +469,9 @@ OG_05_INFRA_UNIT_ECON = SeedStageBlindspot(
     id="OG-05", name="Infrastructure Unit Economics Divergence",
     domain="ops",
     signals_required=["aws_cost_growth_pct", "user_growth_pct"],
-    detection_logic=lambda s: (
-        s.get("aws_cost_growth_pct", 0) >
-        s.get("user_growth_pct", 0) * 2
+    detection_logic=lambda s: is_infra_unit_economics_divergence(
+        aws_cost_growth_pct=s.get("aws_cost_growth_pct", 0),
+        user_growth_pct=s.get("user_growth_pct", 0),
     ),
     why_it_matters=(
         "AWS is growing 2x faster than users. "

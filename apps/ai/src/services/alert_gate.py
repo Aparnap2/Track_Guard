@@ -8,8 +8,12 @@ Gate stages (in order):
 2. Trust check — agent not degraded
 3. Dedup check — same alert not already sent in time window
 4. Tone filter — output passes tone/quality check
+5. Authority check — critical alerts need trust_score >= 0.8
+6. Risk check — flag high financial-risk alerts
+7. Privacy check — block alerts containing PII
 """
 from __future__ import annotations
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -19,12 +23,19 @@ _DEDUP_WINDOW_MINUTES = 60
 _REQUIRED_FIELDS = {"should_alert", "severity", "primary_signal"}
 _OPTIONAL_FIELDS = {"headline", "explanation", "recommended_action"}
 
+# PII patterns for privacy stage
+_PII_PATTERN = re.compile(
+    r"\b[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}\b"         # email
+    r"|\b\d{3}[-.]\d{3}[-.]\d{4}\b"                # phone (US format)
+    r"|\b\d{3}-\d{2}-\d{4}\b"                       # SSN
+)
+
 
 @dataclass
 class GateResult:
     """Result of running the alert gate."""
     passed: bool
-    stage: str  # Which stage blocked it: "schema" | "trust" | "dedup" | "tone" | "passed"
+    stage: str  # Which stage blocked it: "schema" | "trust" | "dedup" | "tone" | "authority" | "risk" | "privacy" | "passed"
     reason: str
     alert: dict | None = None
 
@@ -37,6 +48,9 @@ class AlertGate:
     2. Trust check — agent's trust score not degraded
     3. Dedup check — same alert not sent in last 60 minutes
     4. Tone filter — basic text quality check (permissive fallback)
+    5. Authority check — critical alerts need trust_score >= 0.8
+    6. Risk check — flag high financial-risk alerts
+    7. Privacy check — block alerts containing PII
     """
 
     def __init__(self, tenant_id: str) -> None:
@@ -83,6 +97,21 @@ class AlertGate:
             valid, reason = self._check_tone(alert)
             if not valid:
                 return GateResult(passed=False, stage="tone", reason=reason, alert=alert)
+
+        # Stage 5: Authority check
+        valid, reason = self._check_authority(agent_name, alert)
+        if not valid:
+            return GateResult(passed=False, stage="authority", reason=reason, alert=alert)
+
+        # Stage 6: Risk check
+        valid, reason = self._check_risk(alert)
+        if not valid:
+            return GateResult(passed=False, stage="risk", reason=reason, alert=alert)
+
+        # Stage 7: Privacy check
+        valid, reason = self._check_privacy(alert)
+        if not valid:
+            return GateResult(passed=False, stage="privacy", reason=reason, alert=alert)
 
         # All stages passed — register the dedup key
         dedup_key = self._make_dedup_key(agent_name, alert)
@@ -227,6 +256,79 @@ class AlertGate:
             return False, "Alert text is too short for meaningful delivery"
 
         return True, "Tone check passed"
+
+    # ── Stage 5: Authority check ──────────────────────────────────────────
+
+    def _check_authority(self, agent_name: str, alert: dict) -> tuple[bool, str]:
+        """Stage 5: Authority check for critical alerts.
+
+        If severity is "critical", the agent's trust score must be >= 0.8.
+        Low-trust agents cannot issue critical alerts without review.
+
+        Args:
+            agent_name: Name of the agent that produced this alert.
+            alert: The alert dict being evaluated.
+
+        Returns:
+            (True, reason) if check passes, (False, reason) if blocked.
+        """
+        severity = alert.get("severity", "info")
+        if severity != "critical":
+            return True, "Authority check passed (non-critical)"
+
+        try:
+            from src.services.trust_battery import get_profile
+
+            profile = get_profile(self.tenant_id, agent_name)
+            if profile.trust_score < 0.8:
+                return (
+                    False,
+                    f"Authority check failed: critical alert requires trust_score >= 0.8 "
+                    f"(got {profile.trust_score:.2f})",
+                )
+            return True, "Authority check passed (high-trust critical)"
+        except ImportError:
+            return True, "Authority check passed (trust_battery unavailable)"
+
+    # ── Stage 6: Risk check ──────────────────────────────────────────────
+
+    def _check_risk(self, alert: dict) -> tuple[bool, str]:
+        """Stage 6: Financial risk assessment.
+
+        If severity is "critical" AND the primary_signal contains
+        financial risk indicators ("burn", "runway"), passes with
+        a caveat. Never blocks — always permissive.
+
+        Args:
+            alert: The alert dict being evaluated.
+
+        Returns:
+            Always (True, reason) — this stage is informational.
+        """
+        severity = alert.get("severity", "info")
+        primary_signal = alert.get("primary_signal", "").lower()
+        if severity == "critical" and any(kw in primary_signal for kw in ["burn", "runway"]):
+            return True, "Risk check passed: high financial risk noted"
+        return True, "Risk check passed"
+
+    # ── Stage 7: Privacy check ───────────────────────────────────────────
+
+    def _check_privacy(self, alert: dict) -> tuple[bool, str]:
+        """Stage 7: PII detection in alert content.
+
+        Scans all alert text values for PII patterns (email, phone, SSN).
+        If PII is detected, blocks the alert.
+
+        Args:
+            alert: The alert dict being evaluated.
+
+        Returns:
+            (True, reason) if no PII found, (False, reason) if PII detected.
+        """
+        text = " ".join(str(v) for v in alert.values())
+        if _PII_PATTERN.search(text):
+            return False, "Privacy check failed: alert contains PII"
+        return True, "Privacy check passed"
 
     # ── Test helpers ─────────────────────────────────────────────────────
 

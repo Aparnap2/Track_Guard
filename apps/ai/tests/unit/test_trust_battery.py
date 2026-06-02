@@ -101,3 +101,74 @@ class TestTrustBatteryService:
         update_trust_score("tenant-001", "cofounder", "dispute")
         
         assert is_agent_degraded("tenant-001", "cofounder") == True
+
+
+class TestTrustBatteryGuardrails:
+    """Trust Battery guardrail field tests."""
+
+    def setup_method(self):
+        """Reset trust battery state before each test."""
+        from src.services.trust_battery import reset_profiles
+        reset_profiles()
+
+    def test_authority_limit_default(self):
+        """authority_limit defaults to 'none'."""
+        from src.services.trust_battery import get_profile
+
+        profile = get_profile("tenant-001", "agent")
+        assert profile.authority_limit == "none"
+
+    def test_set_authority_limit(self):
+        """set_authority_limit updates and returns profile."""
+        from src.services.trust_battery import set_authority_limit, get_profile
+
+        profile = set_authority_limit("tenant-001", "agent", "founder")
+        assert profile.authority_limit == "founder"
+
+        retrieved = get_profile("tenant-001", "agent")
+        assert retrieved.authority_limit == "founder"
+
+    def test_max_auto_approve_severity_default(self):
+        """max_auto_approve_severity defaults to 'info'."""
+        from src.services.trust_battery import get_profile
+
+        profile = get_profile("tenant-001", "agent")
+        assert profile.max_auto_approve_severity == "info"
+
+    def test_set_max_auto_approve_severity(self):
+        """set_max_auto_approve_severity updates and returns profile."""
+        from src.services.trust_battery import set_max_auto_approve_severity, get_profile
+
+        profile = set_max_auto_approve_severity("tenant-001", "agent", "warning")
+        assert profile.max_auto_approve_severity == "warning"
+
+        retrieved = get_profile("tenant-001", "agent")
+        assert retrieved.max_auto_approve_severity == "warning"
+
+    def test_can_auto_approve_info_allowed(self):
+        """max=info, request=info → True."""
+        from src.services.trust_battery import can_auto_approve
+        assert can_auto_approve("tenant-001", "agent", "info") is True
+
+    def test_can_auto_approve_warning_blocked(self):
+        """max=info, request=warning → False."""
+        from src.services.trust_battery import can_auto_approve
+        assert can_auto_approve("tenant-001", "agent", "warning") is False
+
+    def test_can_auto_approve_critical_blocked(self):
+        """max=warning, request=critical → False."""
+        from src.services.trust_battery import set_max_auto_approve_severity, can_auto_approve
+        set_max_auto_approve_severity("tenant-001", "agent", "warning")
+        assert can_auto_approve("tenant-001", "agent", "critical") is False
+
+    def test_can_make_irreversible_decision_high_trust(self):
+        """trust=0.9, threshold=0.8 → True."""
+        from src.services.trust_battery import update_trust_score, can_make_irreversible_decision
+        update_trust_score("tenant-001", "agent", "acknowledge")
+        update_trust_score("tenant-001", "agent", "acknowledge")
+        assert can_make_irreversible_decision("tenant-001", "agent") is True
+
+    def test_can_make_irreversible_decision_low_trust(self):
+        """trust=0.7, threshold=0.8 → False."""
+        from src.services.trust_battery import can_make_irreversible_decision
+        assert can_make_irreversible_decision("tenant-001", "agent") is False

@@ -3,9 +3,10 @@
 > An Operational Decision Intelligence system architected on Kautilyan statecraft principles.
 > Not a chatbot — a trusted multi-agent council that observes, analyzes, decides, and learns.
 
-**[![Tests](https://img.shields.io/badge/tests-407%20passing-brightgreen)](#)**
-**[![Architecture](https://img.shields.io/badge/architecture-Kautilyan%20council-blue)](#)**
-**[![Trust](https://img.shields.io/badge/trust-Profiled%20%2B%20Gated-orange)](#)**
+[![Tests](https://img.shields.io/badge/tests-319%20passing-brightgreen)](#)
+[![Architecture](https://img.shields.io/badge/architecture-Kautilyan%20council-blue)](#)
+[![Trust](https://img.shields.io/badge/trust-Profiled%20%2B%20Gated-orange)](#)
+[![MBA](https://img.shields.io/badge/MBA-Finance%20%2B%20Guardrails%20%2B%20Forecasts-red)](#)
 
 ---
 
@@ -24,10 +25,10 @@ Sarthi is modeled on the **Saptanga** (seven limbs of state) and **18 Tirthas** 
               │            │            │
      ┌────────▼──┐  ┌─────▼──────┐  ┌──▼─────────┐
      │ PRATIHARA │  │  AMATYA    │  │  NYAYADISH │
-     │ Gatekeeper│  │  Council   │  │  Arbitrator│
-     │ schema +  │  │  Mantri-   │  │  agent     │
-     │ trust +   │  │  parishad  │  │  conflicts │
-     │ dedup     │  │  synthesis │  │            │
+     │ 7-stage   │  │  Council   │  │  Arbitrator│
+     │ gatekeeper │  │  Mantri-   │  │  agent     │
+     │ + business │  │  parishad  │  │  conflicts │
+     │ guardrails │  │  synthesis │  │            │
      └───────────┘  └─────┬──────┘  └────────────┘
                           │
          ┌────────────────┼────────────────┐
@@ -36,16 +37,32 @@ Sarthi is modeled on the **Saptanga** (seven limbs of state) and **18 Tirthas** 
   │  SAMAHARTA │  │    SUTA    │  │  NAGARIKA   │
   │  Finance   │  │  BI Analyst│  │  Ops Watch  │
   │  Guardian  │  │  (leading  │  │  (operational│
-  │  (revenue) │  │  indicators)│  │  heartbeat) │
+  │  + Finance │  │  indicators)│  │  heartbeat) │
+  │  Rules Engine│  │            │  │            │
   └──────┬─────┘  └──────┬──────┘  └──────┬──────┘
          │                │                │
          └────────────────┼────────────────┘
                           │
               ┌───────────▼───────────┐
+              │   BUSINESS PIPELINE   │
+              │  Finance Rules →      │
+              │  Guardrails → HITL →  │
+              │  MissionState → Slack │
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
+              │   PREDICTIVE GUARDIAN │
+              │  Trend extrapolation  │
+              │  Runway projection    │
+              │  Churn acceleration   │
+              │  Threshold alerts     │
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
               │      CHARAKA         │
-              │  Wandering Spy —     │
-              │  cross-domain anomaly│
-              │  inconsistency check │
+              │  Wandering Spy —      │
+              │  cross-domain anomaly │
+              │  inconsistency check  │
               └──────────────────────┘
                           │
               ┌───────────▼───────────┐
@@ -63,6 +80,11 @@ Sarthi is modeled on the **Saptanga** (seven limbs of state) and **18 Tirthas** 
               └──────────────────────┘
 ```
 
+**New in V4: MBA+Kautilya Integration Layer.** Three new deterministic layers sit between the guardians and the founder:
+- **Finance Rules** — 17 detection functions + 7 MBA primitives (WACC, NPV, IRR, burn multiple, etc.)
+- **Guardrails Engine** — 7-stage policy evaluation (investor-facing, authority, reversibility, risk, privacy, approval tier, blocking)
+- **Predictive Guardian** — trend forecasting, runway depletion projection, churn acceleration detection
+
 ---
 
 ## The 18 Tirthas: Kautilya's Officer Corps Mapped to Code
@@ -70,18 +92,18 @@ Sarthi is modeled on the **Saptanga** (seven limbs of state) and **18 Tirthas** 
 | # | Tirtha | Function | Sarthi Component | File |
 |---|--------|----------|-----------------|------|
 | 1 | **Mantri** | Chief Minister — strategic deliberation | `CorrelationAgent` + `Mantriparishad` | `agents/cofounder/correlation.py`, `joint_council.py` |
-| 2 | **Purohita** | Ethical Counsel — trust governance | `TrustBattery` — degraded gate | `services/trust_battery.py` |
-| 3 | **Samaharta** | Collector-General — revenue aggregation | `FinanceGuardian` | `agents/finance/graph.py` |
+| 2 | **Purohita** | Ethical Counsel — trust governance | `TrustBattery` — degraded gate + guardrail fields | `services/trust_battery.py` |
+| 3 | **Samaharta** | Collector-General — revenue aggregation | `FinanceGuardian` + `FinanceRules` | `agents/finance/graph.py`, `business/finance_rules.py` |
 | 4 | **Sannidhata** | Treasury Keeper — guard financial truth | `MissionState` in PostgreSQL | `session/mission_state.py` |
-| 5 | **Senapati** | Commander — execute, don't deliberate | Alert dispatch engine | `services/alert_gate.py` (dispatch) |
+| 5 | **Senapati** | Commander — execute, don't deliberate | Business pipeline + decision dispatch | `orchestration/run_business_pipeline.py` |
 | 6 | **Durgapala** | Fort Governor — watch for internal breach | Rate limiter + circuit breaker pattern | `session/relevance_gate.py` |
 | 7 | **Nagarika** | City Superintendent — ops heartbeat | `OpsWatch` guardian | `agents/ops/graph.py` |
-| 8 | **Pratihara** | Gatekeeper — control access to founder | `AlertGate` — 4-stage quality gate | `services/alert_gate.py` |
+| 8 | **Pratihara** | Gatekeeper — control access to founder | `AlertGate` — 7-stage quality + business guardrails | `services/alert_gate.py`, `business/guardrails.py` |
 | 9 | **Suta** | Charioteer — leading indicators | `BIAnalyst` guardian | `agents/bi/graph.py` |
 | 10 | **Gopa** | Village Accountant — raw data collection | Data ingestion pipeline | `memory/qdrant_ops.py` |
 | 11 | **Sthanika** | District Officer — mid-tier signal processor | Watchlist pattern engine | `guardian/watchlist.py` |
 | 12 | **Yukta** | Secretary — perfect recording, no deciding | `SessionMemoryWriter` + Langfuse traces | `session/memory_integration.py` |
-| 13 | **Akshapataladhyaksha** | Accountant-General — consolidated view | Dashboard / MissionState aggregator | `session/mission_state.py` |
+| 13 | **Akshapataladhyaksha** | Accountant-General — consolidated view | Dashboard / MissionState aggregator + HTMX panels | `session/mission_state.py`, `internal/web/business_handler.go` |
 | 14 | **Nyayadish** | Chief Justice — arbitrate agent conflicts | `Nyayadish` — agent conflict arbiter | `agents/cofounder/arbiter.py` |
 | 15 | **Rajuka** | Reward/Punishment — autonomous demotion | Trust Battery score decay | `services/trust_battery.py` |
 | 16 | **Dharmamahamatras** | Welfare Officers — founder override | `founder_disputed` ACE loop | `session/memory_integration.py` |
@@ -90,23 +112,77 @@ Sarthi is modeled on the **Saptanga** (seven limbs of state) and **18 Tirthas** 
 
 ---
 
+## MBA+Kautilya Integration Layer
+
+### Finance Rules (`business/finance_rules.py`)
+17 detection functions extracted from guardian watchlist lambdas + 7 MBA finance primitives. Pure Python, zero LLM calls.
+
+**Detections:** silent churn death, burn multiple creep, customer concentration risk, runway compression, failed payment clusters, payroll/revenue breach, leaky bucket activation, power user MRR masking, feature adoption drop, cohort retention degradation, NRR < 100%, trial activation wall, error segment correlation, support outpacing growth, cross-channel bug convergence, deploy frequency collapse, infra unit economics divergence.
+
+**MBA Primitives:** `compute_burn_multiple`, `compute_runway_days`, `compute_effective_runway_days`, `compute_npv`, `compute_irr`, `compute_wacc`, `compute_working_capital_pressure`.
+
+### Business Decision Envelope (`business/envelope.py`)
+Canonical typed contract composing 5 existing schemas (`EventEnvelope`, `AlertDecision`, `GuardianMessage`, `DecisionResult`, `AlertEvidenceChain`) with `FinancialSnapshot` + `GuardrailResult`. Composition, not inheritance — zero source file modifications.
+
+### Guardrails Engine (`business/guardrails.py`)
+7-stage deterministic policy evaluation — no LLM calls:
+1. **Investor-facing** — flag decisions visible to investors
+2. **Authority** — map severity to approval tier (auto/review/blocking)
+3. **Reversibility** — detect irreversible decisions (payouts, contracts, public comms)
+4. **Risk classification** — financial / legal / reputational / operational
+5. **Privacy** — PII detection via regex
+6. **Approval tier final** — deterministic tier assignment
+7. **Blocking override** — block when multiple critical conditions met
+
+### Alert Quality Gate — Extended (`services/alert_gate.py`)
+Expanded from 4 to 7 stages: schema → trust → dedup → tone → **authority** → **risk** → **privacy**.
+
+### Trust Battery — Extended (`services/trust_battery.py`)
+4 new guardrail fields added to `AgentTrustProfile`: `authority_limit`, `max_auto_approve_severity`, `investor_update_requires_approval`, `irreversible_decision_threshold`.
+
+### Business Pipeline (`orchestration/run_business_pipeline.py`)
+Chains 7 stages: finance rules → envelope → guardrails → HITL routing → MissionState update → events → Slack alert. Wrapped as Temporal activities.
+
+### Predictive Guardian (`predictive/engine.py`)
+10 pure forecasting functions using standard library only (math, statistics):
+- **Linear trend** — OLS regression for any metric
+- **Predict next** — single/multi-step forecast via trend extrapolation
+- **Days to threshold** — when will a metric breach a critical value
+- **Moving average** — sliding window smoother
+- **Confidence intervals** — normal approximation bounds
+- **Volatility** — coefficient of variation
+- **Runway depletion** — trend-adjusted cash runway projection
+- **Churn acceleration** — detects if churn rate is accelerating
+- **Forecast summary** — complete metric forecast with trend, CI, volatility
+
+### HTMX Dashboards (Go side)
+3 new admin panels in `apps/core/internal/web/`:
+- **Decision Queue** — pending business decisions with approve/reject buttons (auto-refresh 10s)
+- **Guardrail Status** — 2x2 grid of current guardrail states (auto-refresh 15s)
+- **Finance Risk** — burn multiple, runway, working capital, WACC with color-coded risk (auto-refresh 15s)
+
+---
+
 ## Core Components
 
 ### Trust Battery (Purohita)
-Every agent has a dynamic trust profile with score (0.0–1.0), route priority, degraded mode, and full event audit history. Degraded agents (trust < 0.4) are hard-blocked at the relevance gate — they cannot fire until trust is restored.
+Every agent has a dynamic trust profile with score (0.0–1.0), route priority, degraded mode, and full event audit history. Degraded agents (trust < 0.4) are hard-blocked at the relevance gate. Extended in V4 with guardrail authority limits and auto-approve thresholds.
 
 ### Session Layer (Mantriparishad)
-The `MissionState` is the single source of ground truth — shared context that every guardian reads and writes. The `relevance_gate` determines which agents should respond using keyword triggers + active alerts + Trust Battery.
+The `MissionState` is the single source of ground truth — shared context that every guardian reads and writes. Extended with 12 finance + guardrail fields in V4.
 
 ### Joint Alert Council (Mantriparishad)
 When 2+ guardians fire in the same session, the council synthesizes them into one alert with unified root cause, cross-domain severity, and a single recommended action. Prevents alert fatigue.
 
 ### Alert Quality Gate (Pratihara)
-Every alert passes through 4 stages before reaching the founder:
+Every alert passes through 7 stages before reaching the founder:
 1. **Schema validation** — required fields, valid types
 2. **Trust check** — agent not degraded
 3. **Dedup check** — same alert not sent in last 60 minutes
 4. **Tone filter** — basic text quality
+5. **Authority check** — agent authorized for this severity level
+6. **Risk assessment** — financial risk classification
+7. **Privacy check** — PII detection
 
 ### Cross-Domain Spy (Charaka)
 Roams across all MissionState fields looking for inconsistencies: burn alerts without operational symptoms, revenue growth with cash burn, short runways with misplaced founder focus.
@@ -121,10 +197,10 @@ Resolves contradictions between guardians — severity mismatches (critical vs. 
 Every alert or recommendation answers four questions:
 
 | Question | How |
-|----------|-----|
+|----------|------|
 | **What happened?** | Guardian detects metric deviation |
 | **Why did it happen?** | Narrative layer explains root cause |
-| **What if nothing changes?** | (Coming) Predictive Guardian — runway projection, churn probability |
+| **What if nothing changes?** | Predictive Guardian — runway projection, churn probability, threshold crossing |
 | **What should be done?** | Concrete recommended action with deadline |
 
 ---
@@ -134,12 +210,16 @@ Every alert or recommendation answers four questions:
 ```text
 T+0   → Raw data arrives (webhook / sync)
 T+3m  → Guardian cycle fires (detect → reason → decide)
-T+5m  → Alert passes Pratihara gate (schema → trust → dedup → tone)
-T+6m  → If 2+ guardians: Mantriparishad synthesizes
-T+7m  → Charaka checks for cross-domain inconsistencies
-T+10m → Founder receives alert on Slack with recommendation
-T+12m → Founder acknowledges / disputes via Slack button
-T+15m → Trust score updated, event logged to Graphiti
+T+5m  → Finance Rules compute 17 detections + 7 MBA primitives
+T+6m  → Guardrails Engine evaluates 7-stage policy
+T+7m  → Predictive Guardian forecasts trend, runway, churn
+T+8m  → BusinessDecisionEnvelope assembled
+T+9m  → HITL routes (auto / review / approve / blocked)
+T+10m → MissionState updated with finance + guardrail fields
+T+11m → HTMX dashboard refreshes (Decision Queue, Guardrail Status, Finance Risk)
+T+12m → Founder receives alert on Slack with recommendation
+T+15m → Founder acknowledges / disputes via Slack button
+T+20m → Trust score updated, event logged to Graphiti
 T+48h → Follow-up check: was action taken? Outcome measured?
 ```
 
@@ -149,35 +229,82 @@ T+48h → Follow-up check: was action taken? Outcome measured?
 
 | Layer | Technology |
 |-------|-----------|
-| **LLM** | OpenRouter (nemotron-3-super-120b via API) |
+| **LLM** | OpenRouter (nemotron-3-super-120b via API), Gemini fallback |
 | **Embeddings** | OpenRouter (llama-nemotron-embed-vl-1b, 2048-dim) |
 | **Semantic Memory** | Graphiti + Neo4j 5.26 |
 | **Vector Store** | Qdrant (episodic + compressed) |
 | **Relational DB** | PostgreSQL (MissionState, trust events, sessions) |
 | **Cache** | Redis (working memory, session TTL) |
 | **Tracing** | Langfuse v4 (@observe) |
+| **Workflow** | Temporal (activity orchestration) |
+| **Business Logic** | Pure Python — standard library only (no numpy, no LLM) |
+| **Dashboard** | Go 1.24 + Fiber + HTMX |
 | **Language** | Python 3.13, Go 1.24 |
 | **Config** | Env-only via pydantic-settings — zero hardcoded secrets |
 
 ---
 
-## Test Coverage (407+ Passing)
+## Test Coverage (319+ Passing)
 
 | Suite | Tests | Status |
 |-------|-------|--------|
-| Trust Battery | 19 | ✅ |
+| Trust Battery | 28 | ✅ |
 | Session Layer | 35 | ✅ |
 | Co-founder Agent | 20 | ✅ |
 | Correlation + Avoidance | 14 | ✅ |
 | Guardian Watchlist | 69 | ✅ |
 | Finance Guardian | 25 | ✅ |
 | Memory Spine (Graphiti) | 26 | ✅ |
-| LLMOps | 15 | ✅ |
-| Workflows | 31 | ✅ |
 | HITL | 11 | ✅ |
-| Integrations | 16 | ✅ |
-| Embeddings + Qdrant | 26 | ✅ |
+| Finance Rules | 10 | ✅ |
+| Guardrails Engine | 22 | ✅ |
+| Business Pipeline | 14 | ✅ |
+| Predictive Guardian (engine) | 33 | ✅ |
+| Predictive Guardian (activity) | 10 | ✅ |
+| Go HTMX Handlers | 13 | ✅ |
 | All Others | 100+ | ✅ |
+
+---
+
+## Project Structure
+
+```
+apps/
+  core/                    # Go Modular Monolith
+    cmd/                   # Entrypoints (server, worker, consumer)
+    internal/
+      web/                 # HTTP handlers + HTMX templates
+        templates/         # 14 HTML templates (dashboard, panels)
+        business_handler.go # Decision Queue, Guardrail Status, Finance Risk
+      agents/              # Go agent definitions
+      workflow/            # Temporal workflows & activities
+      api/                 # Auth, webhook handlers
+    migrations/            # SQL migrations
+  ai/                      # Python AI Worker
+    src/
+      agents/              # Guardian agents (finance, bi, ops, qa, investor)
+      business/            # MBA+Kautilya integration (NEW V4)
+        finance_rules.py   # 17 detections + 7 MBA primitives
+        guardrails.py      # 7-stage policy engine
+        envelope.py        # BusinessDecisionEnvelope
+      predictive/          # Forecasting engine (NEW V4)
+        engine.py          # 10 pure forecasting functions
+        schemas.py         # 6 Pydantic models
+      activities/          # Temporal activities
+        run_finance_rules.py
+        run_guardrails.py
+        run_predictive_guardian.py
+      orchestration/       # Pipeline orchestrators
+        run_business_pipeline.py
+      services/            # Trust battery, alert gate, decision engine
+      session/             # MissionState, relevance gate
+      guardian/            # Watchlist, detector
+      schemas/             # Pydantic models
+      memory/              # Graphiti, Qdrant, spine
+      events/              # Redis Streams event bus
+    tests/unit/            # 319+ tests
+    infrastructure/        # SQL migrations
+```
 
 ---
 
@@ -187,11 +314,17 @@ T+48h → Follow-up check: was action taken? Outcome measured?
 # Start infrastructure
 docker start sarthi-postgres sarthi-neo4j sarthi-qdrant sarthi-redis
 
-# Run tests
+# Run Python tests
 cd apps/ai && uv run pytest tests/unit/ -q
+
+# Run Go tests
+cd apps/core && go test ./internal/web/... -v
 
 # Run worker
 cd apps/ai && uv run python -m src.worker
+
+# Run server
+cd apps/core && go run cmd/server/main.go
 ```
 
 ---
@@ -203,3 +336,5 @@ cd apps/ai && uv run python -m src.worker
 3. **Founder cognition** — fewer, sharper, more actionable messages
 4. **Trust gradually** — copilot → workflow assistant → semi-autonomous → autonomous
 5. **No hardcoded secrets** — env-only configuration, centralized in `config/database.py`
+6. **Composition over inheritance** — new packages import and nest existing schemas, never modify them
+7. **Deterministic core** — finance, guardrails, and forecasting are pure Python with zero LLM calls

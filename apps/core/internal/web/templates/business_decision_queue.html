@@ -1,0 +1,92 @@
+<!-- Business Decision Queue Panel - Pending decisions awaiting founder approval -->
+<div class="card bg-white rounded-xl shadow-md overflow-hidden">
+    <div class="card-header bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">
+                <i class="fas fa-bolt mr-2"></i>⚡ Decision Queue
+            </h3>
+            <span class="px-3 py-1 bg-white/20 text-white rounded-full text-xs font-semibold">
+                <i class="fas fa-clock mr-1"></i>{{len .Decisions}} pending
+            </span>
+        </div>
+    </div>
+    <div class="p-6"
+         hx-get="/api/business/decision-queue"
+         hx-trigger="every 10s"
+         id="decision-queue">
+
+        <!-- Loading state -->
+        <div class="htmx-indicator flex justify-center py-8">
+            <div class="animate-pulse text-center">
+                <i class="fas fa-circle-notch fa-spin text-3xl text-amber-600 mb-2"></i>
+                <p class="text-sm text-gray-500">Loading decisions...</p>
+            </div>
+        </div>
+
+        {{if .Decisions}}
+        <table class="w-full">
+            <thead>
+                <tr class="text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">Type</th>
+                    <th class="px-4 py-2">Severity</th>
+                    <th class="px-4 py-2">Description</th>
+                    <th class="px-4 py-2">Time</th>
+                    <th class="px-4 py-2">Status</th>
+                    <th class="px-4 py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Decisions}}
+                <tr class="border-b hover:bg-gray-50" id="decision-{{.ID}}">
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">{{.ID}}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            {{if eq .Type "finance"}}bg-red-100 text-red-800
+                            {{else if eq .Type "bi"}}bg-blue-100 text-blue-800
+                            {{else}}bg-gray-100 text-gray-800{{end}}">{{.Type}}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            {{if eq .Severity "critical"}}bg-red-100 text-red-800
+                            {{else if eq .Severity "warning"}}bg-yellow-100 text-yellow-800
+                            {{else}}bg-blue-100 text-blue-800{{end}}">{{.Severity}}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600">{{.Description}}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{{.Timestamp}}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            {{if eq .Status "pending"}}bg-amber-100 text-amber-800
+                            {{else if eq .Status "approved"}}bg-green-100 text-green-800
+                            {{else if eq .Status "rejected"}}bg-red-100 text-red-800
+                            {{else}}bg-gray-100 text-gray-800{{end}}">{{.Status}}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button hx-post="/api/business/decisions/{{.ID}}/approve"
+                                hx-target="closest tr"
+                                hx-swap="outerHTML swap:0.3s"
+                                class="text-green-600 hover:text-green-900 mr-2 text-sm">Approve</button>
+                        <button hx-post="/api/business/decisions/{{.ID}}/reject"
+                                hx-target="closest tr"
+                                hx-swap="outerHTML swap:0.3s"
+                                class="text-red-600 hover:text-red-900 mr-2 text-sm">Reject</button>
+                        <button class="text-indigo-600 hover:text-indigo-900 text-sm">View</button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <!-- Empty state -->
+        <div class="text-center py-12">
+            <i class="fas fa-check-circle text-6xl text-green-400 mb-4"></i>
+            <h4 class="text-lg font-semibold text-gray-700 mb-2">✨ All decisions processed.</h4>
+            <p class="text-gray-500">No pending items awaiting approval</p>
+            <p class="text-sm text-gray-400 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                Auto-refreshes every 10 seconds
+            </p>
+        </div>
+        {{end}}
+    </div>
+</div>

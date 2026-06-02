@@ -1,0 +1,65 @@
+<!-- Business Finance Risk Panel - Financial health metrics -->
+<div class="card bg-white rounded-xl shadow-md overflow-hidden">
+    <div class="card-header bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">
+                <i class="fas fa-chart-line mr-2"></i>📊 Finance Risk
+            </h3>
+        </div>
+    </div>
+    <div class="p-6"
+         hx-get="/api/business/finance-risk"
+         hx-trigger="every 15s"
+         id="finance-risk">
+
+        <!-- Loading state -->
+        <div class="htmx-indicator flex justify-center py-8">
+            <div class="animate-pulse text-center">
+                <i class="fas fa-circle-notch fa-spin text-3xl text-emerald-600 mb-2"></i>
+                <p class="text-sm text-gray-500">Loading finance data...</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <!-- Burn Multiple -->
+            <div class="p-4 bg-gray-50 rounded-lg text-center">
+                <p class="text-3xl font-bold
+                    {{if gt .BurnMultiple 2.0}}text-red-600
+                    {{else if ge .BurnMultiple 1.5}}text-yellow-600
+                    {{else}}text-green-600{{end}}">{{printf "%.1f" .BurnMultiple}}x</p>
+                <p class="text-xs text-gray-500 mt-1">Burn Multiple</p>
+            </div>
+
+            <!-- Runway -->
+            <div class="p-4 bg-gray-50 rounded-lg text-center">
+                <p class="text-3xl font-bold
+                    {{if lt .RunwayDays 90}}text-red-600
+                    {{else if le .RunwayDays 180}}text-yellow-600
+                    {{else}}text-green-600{{end}}">{{.RunwayDays}}d</p>
+                <p class="text-xs text-gray-500 mt-1">Runway</p>
+            </div>
+
+            <!-- Working Capital -->
+            <div class="p-4 bg-gray-50 rounded-lg text-center">
+                <p class="text-3xl font-bold
+                    {{if lt .WorkingCapitalRatio 1.0}}text-red-600
+                    {{else if le .WorkingCapitalRatio 1.5}}text-yellow-600
+                    {{else}}text-green-600{{end}}">{{printf "%.1f" .WorkingCapitalRatio}}x</p>
+                <p class="text-xs text-gray-500 mt-1">Working Capital</p>
+            </div>
+
+            <!-- WACC -->
+            <div class="p-4 bg-gray-50 rounded-lg text-center">
+                <p class="text-3xl font-bold text-blue-600">{{printf "%.1f" (mul .WACC 100)}}%</p>
+                <p class="text-xs text-gray-500 mt-1">WACC</p>
+            </div>
+        </div>
+
+        <!-- Last Updated -->
+        <div class="border-t pt-3 text-center">
+            <p class="text-xs text-gray-400">
+                Last updated: {{if .LastUpdated}}{{.LastUpdated}}{{else}}N/A{{end}}
+            </p>
+        </div>
+    </div>
+</div>

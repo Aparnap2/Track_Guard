@@ -1,0 +1,86 @@
+<!-- Business Guardrail Status Panel - Current guardrail states -->
+<div class="card bg-white rounded-xl shadow-md overflow-hidden">
+    <div class="card-header bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">
+                <i class="fas fa-shield-alt mr-2"></i>🛡️ Guardrail Status
+            </h3>
+        </div>
+    </div>
+    <div class="p-6"
+         hx-get="/api/business/guardrail-status"
+         hx-trigger="every 15s"
+         id="guardrail-status">
+
+        <!-- Loading state -->
+        <div class="htmx-indicator flex justify-center py-8">
+            <div class="animate-pulse text-center">
+                <i class="fas fa-circle-notch fa-spin text-3xl text-purple-600 mb-2"></i>
+                <p class="text-sm text-gray-500">Loading guardrails...</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <!-- Approval Tier -->
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500 mb-1">Approval Tier</p>
+                <span class="px-2 py-1 text-sm rounded-full
+                    {{if eq .ApprovalTier "auto"}}bg-green-100 text-green-800
+                    {{else if eq .ApprovalTier "review"}}bg-yellow-100 text-yellow-800
+                    {{else}}bg-red-100 text-red-800{{end}}">
+                    {{if eq .ApprovalTier "auto"}}Auto
+                    {{else if eq .ApprovalTier "review"}}Review
+                    {{else}}Blocking{{end}}
+                </span>
+                <p class="text-xs text-gray-400 mt-1">Current approval threshold</p>
+            </div>
+
+            <!-- Decision Reversibility -->
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500 mb-1">Reversibility</p>
+                <span class="px-2 py-1 text-sm rounded-full
+                    {{if .Reversible}}bg-green-100 text-green-800
+                    {{else}}bg-red-100 text-red-800{{end}}">
+                    {{if .Reversible}}Reversible{{else}}Irreversible{{end}}
+                </span>
+                <p class="text-xs text-gray-400 mt-1">Can decisions be undone</p>
+            </div>
+
+            <!-- Investor Facing -->
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500 mb-1">Investor Facing</p>
+                <span class="px-2 py-1 text-sm rounded-full
+                    {{if .InvestorFacing}}bg-amber-100 text-amber-800
+                    {{else}}bg-blue-100 text-blue-800{{end}}">
+                    {{if .InvestorFacing}}Active{{else}}Inactive{{end}}
+                </span>
+                <p class="text-xs text-gray-400 mt-1">Investor comms flag</p>
+            </div>
+
+            <!-- Privacy Filter -->
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500 mb-1">Privacy Filter</p>
+                <span class="px-2 py-1 text-sm rounded-full
+                    {{if .PrivacySensitive}}bg-green-100 text-green-800
+                    {{else}}bg-gray-100 text-gray-800{{end}}">
+                    {{if .PrivacySensitive}}Active{{else}}Inactive{{end}}
+                </span>
+                <p class="text-xs text-gray-400 mt-1">PII detection status</p>
+            </div>
+        </div>
+
+        <!-- Active Blocks -->
+        <div class="border-t pt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Active Blocks</h4>
+            {{if gt .ActiveBlocks 0}}
+            <ul class="space-y-1">
+                {{range .BlockReasons}}
+                <li class="text-sm text-red-600">• {{.}}</li>
+                {{end}}
+            </ul>
+            {{else}}
+            <p class="text-sm text-gray-500">✅ No active guardrail blocks</p>
+            {{end}}
+        </div>
+    </div>
+</div>

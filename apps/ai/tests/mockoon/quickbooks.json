@@ -1,0 +1,129 @@
+{
+  "uuid": "8f5d4382-2e49-4a4b-987c-23cf3958d4b4",
+  "lastMigration": 29,
+  "name": "QuickBooks Online Mock",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 8080,
+  "hostname": "",
+  "routes": [
+    {
+      "uuid": "fcef91f5-f42c-4475-950e-829b94f562b5",
+      "documentation": "health",
+      "method": "get",
+      "endpoint": "health",
+      "responses": [
+        {
+          "uuid": "18c3efed-8003-4d79-a7ed-fe6736e39a20",
+          "body": "{\"status\": \"ok\"}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "05af9b5b-c270-4c05-ace6-4749b93e2041",
+      "documentation": "v3/company/123146573628384/query",
+      "method": "get",
+      "endpoint": "v3/company/123146573628384/query",
+      "responses": [
+        {
+          "uuid": "0634c051-49e6-4b0c-b4bc-d3704461e39c",
+          "body": "{\"QueryResponse\": {\"Invoice\": [{\"Id\": \"101\", \"DocNumber\": \"INV-0001\", \"TxnDate\": \"2026-05-01\", \"TotalAmt\": 15000.0, \"Balance\": 15000.0, \"DueDate\": \"2026-05-31\"}, {\"Id\": \"102\", \"DocNumber\": \"INV-0002\", \"TxnDate\": \"2026-05-15\", \"TotalAmt\": 5000.0, \"Balance\": 5000.0, \"DueDate\": \"2026-06-01\"}, {\"Id\": \"103\", \"DocNumber\": \"INV-0003\", \"TxnDate\": \"2026-05-20\", \"TotalAmt\": 8500.0, \"Balance\": 8500.0, \"DueDate\": \"2026-06-19\"}, {\"Id\": \"104\", \"DocNumber\": \"INV-0004\", \"TxnDate\": \"2026-05-20\", \"TotalAmt\": 12000.0, \"Balance\": 0.0, \"DueDate\": \"2026-05-20\"}, {\"Id\": \"105\", \"DocNumber\": \"INV-0005\", \"TxnDate\": \"2026-05-25\", \"TotalAmt\": 3000.0, \"Balance\": 0.0, \"DueDate\": \"2026-06-24\"}], \"maxResults\": 5, \"startPosition\": 1, \"totalCount\": 5}}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    }
+  ],
+  "folders": [],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uid": "fcef91f5-f42c-4475-950e-829b94f562b5"
+    },
+    {
+      "type": "route",
+      "uid": "05af9b5b-c270-4c05-ace6-4749b93e2041"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "callbacks": [],
+  "data": []
+}

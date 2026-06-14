@@ -3,7 +3,7 @@
 > An Operational Decision Intelligence system architected on Kautilyan statecraft principles.
 > Not a chatbot — a trusted multi-agent council that observes, analyzes, decides, and learns.
 
-[![Tests](https://img.shields.io/badge/tests-319%20passing-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-375%20passing-brightgreen)](#)
 [![Architecture](https://img.shields.io/badge/architecture-Kautilyan%20council-blue)](#)
 [![Trust](https://img.shields.io/badge/trust-Profiled%20%2B%20Gated-orange)](#)
 [![MBA](https://img.shields.io/badge/MBA-Finance%20%2B%20Guardrails%20%2B%20Forecasts-red)](#)
@@ -155,6 +155,22 @@ Chains 7 stages: finance rules → envelope → guardrails → HITL routing → 
 - **Churn acceleration** — detects if churn rate is accelerating
 - **Forecast summary** — complete metric forecast with trend, CI, volatility
 
+### Startup Guardian (SG) — Deterministic Founder Council
+Synchronous snapshot engine that queries ERPNext, HubSpot, and QuickBooks → assembles MissionStateV2 (Support, Execution, Team, Finance, Revenue) → runs 8 watchlists + 5 cross-domain correlations → computes overall health.
+
+**Connectors:**
+- **ERPNext** — `src/integrations/erpnext_client.py` (pure-stdlib Frappe REST client) + `erpnext.py` (mock/real mode, 4 snapshot sections)
+- **HubSpot** — `src/integrations/hubspot.py` (mock mode + SDK fallback)
+- **QuickBooks** — `src/integrations/quickbooks.py` (mock mode + httpx real, float-to-cents, DSO calculation)
+
+**Assembly:** 5 domain assemblers in `src/guardian/assemblers/` transform flat snapshot dicts → Pydantic domain states + computed health enums.
+
+**Detection:** 8 watchlist rules + 5 cross-domain correlations → `run_startup_detector()`. All deterministic, zero LLM calls.
+
+**Orchestration:** `src/orchestration/run_startup_guardian.py` runs 3 connectors via `asyncio.to_thread`, assembles 5 domain states, computes `overall_health = worst(health)`.
+
+**Testing:** 54 unit tests + 2 E2E tests against Mockoon containers (docker-compose.startup-guardian.yml). Mockoon fixtures with query-param routing for ERPNext doctypes. All monetary values in integer cents.
+
 ### HTMX Dashboards (Go side)
 3 new admin panels in `apps/core/internal/web/`:
 - **Decision Queue** — pending business decisions with approve/reject buttons (auto-refresh 10s)
@@ -262,6 +278,13 @@ T+48h → Follow-up check: was action taken? Outcome measured?
 | Predictive Guardian (engine) | 33 | ✅ |
 | Predictive Guardian (activity) | 10 | ✅ |
 | Go HTMX Handlers | 13 | ✅ |
+| Startup Guardian Connectors | 22 | ✅ |
+| Startup Guardian Assemblers | 13 | ✅ |
+| Startup Guardian Watchlists | 4 | ✅ |
+| Startup Guardian Correlations | 6 | ✅ |
+| Startup Guardian Detector | 3 | ✅ |
+| Startup Guardian Orchestrator | 5 | ✅ |
+| Startup Guardian E2E | 2 | ✅ |
 | All Others | 100+ | ✅ |
 
 ---
@@ -296,9 +319,17 @@ apps/
         run_predictive_guardian.py
       orchestration/       # Pipeline orchestrators
         run_business_pipeline.py
+        run_startup_guardian.py       # Startup Guardian orchestrator
+        run_startup_guardian_cli.py   # CLI entrypoint
       services/            # Trust battery, alert gate, decision engine
       session/             # MissionState, relevance gate
       guardian/            # Watchlist, detector
+        assemblers/         # Startup Guardian domain state assemblers
+        startup_watchlists.py
+        startup_correlations.py
+        startup_detector.py
+      integrations/        # Stripe, Plaid, Slack, ERPNext, HubSpot, QuickBooks
+      states/              # MissionStateV2 domain state schemas
       schemas/             # Pydantic models
       memory/              # Graphiti, Qdrant, spine
       events/              # Redis Streams event bus
@@ -322,6 +353,16 @@ cd apps/core && go test ./internal/web/... -v
 
 # Run worker
 cd apps/ai && uv run python -m src.worker
+
+# Run Startup Guardian with Mockoon containers
+docker compose -f docker-compose.startup-guardian.yml up -d mock-erpnext mock-hubspot mock-quickbooks
+
+# Run Startup Guardian E2E tests
+ERPNEXT_URL=http://localhost:8099 ERPNEXT_USER=Administrator ERPNEXT_PASSWORD=admin \
+  cd apps/ai && uv run pytest tests/integration/test_startup_guardian_e2e.py -v
+
+# Run Startup Guardian CLI (mock mode, no containers needed)
+cd apps/ai && uv run python -m src.orchestration.run_startup_guardian_cli my-tenant
 
 # Run server
 cd apps/core && go run cmd/server/main.go

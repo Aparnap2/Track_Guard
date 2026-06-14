@@ -1,0 +1,71 @@
+services:
+  # ── Mock ERPNext (Mockoon) ───────────────────────────────────────
+  mock-erpnext:
+    image: mockoon/cli:latest
+    container_name: sg-mock-erpnext
+    command: ["-d", "/data", "-p", "8080"]
+    ports:
+      - "8099:8080"
+    volumes:
+      - ./apps/ai/tests/mockoon/erpnext.json:/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 10
+      start_period: 3s
+
+  # ── Mock HubSpot (Mockoon) ───────────────────────────────────────
+  mock-hubspot:
+    image: mockoon/cli:latest
+    container_name: sg-mock-hubspot
+    command: ["-d", "/data", "-p", "8080"]
+    ports:
+      - "8098:8080"
+    volumes:
+      - ./apps/ai/tests/mockoon/hubspot.json:/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 10
+      start_period: 3s
+
+  # ── Mock QuickBooks (Mockoon) ─────────────────────────────────────
+  mock-quickbooks:
+    image: mockoon/cli:latest
+    container_name: sg-mock-quickbooks
+    command: ["-d", "/data", "-p", "8080"]
+    ports:
+      - "8097:8080"
+    volumes:
+      - ./apps/ai/tests/mockoon/quickbooks.json:/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 10
+      start_period: 3s
+
+  # ── Test Runner ───────────────────────────────────────────────────
+  sarthi-test:
+    build:
+      context: apps/ai
+      dockerfile: tests/Dockerfile.test
+    container_name: sg-test-runner
+    environment:
+      # Mock API endpoints
+      - ERPNEXT_URL=http://mock-erpnext:8080
+      - ERPNEXT_USER=Administrator
+      - ERPNEXT_PASSWORD=admin
+
+      # LLM (mocked in tests — key needed for import)
+      - GROQ_API_KEY=${GROQ_API_KEY:-test-key}
+    command: >
+      sh -c "pytest tests/unit/integrations/ -v --tb=short &&
+             pytest tests/contract/ -v --tb=short &&
+             pytest tests/integration/ -v --tb=short"
+    depends_on:
+      mock-erpnext:
+        condition: service_healthy
+      mock-hubspot:
+        condition: service_healthy
+      mock-quickbooks:
+        condition: service_healthy

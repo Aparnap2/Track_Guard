@@ -1,14 +1,14 @@
 """Services module for IterateSwarm AI.
 
 This module provides services for:
-- Vector embeddings (Ollama)
+- Vector embeddings (OpenRouter)
 - Vector storage and similarity search (Qdrant)
 - Workflow management (Temporal)
 """
 
 from src.services.qdrant import QdrantService, get_qdrant_service
 from src.services.embeddings import (
-    OllamaEmbeddings,
+    OpenRouterEmbeddings,
     EmbeddingResult,
     SimilarityResult,
     get_embeddings_service,
@@ -29,7 +29,7 @@ __all__ = [
     "QdrantService",
     "get_qdrant_service",
     # Embeddings
-    "OllamaEmbeddings",
+    "OpenRouterEmbeddings",
     "EmbeddingResult",
     "SimilarityResult",
     "get_embeddings_service",

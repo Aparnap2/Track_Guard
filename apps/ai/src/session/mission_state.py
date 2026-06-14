@@ -17,9 +17,11 @@ from datetime import datetime
 
 import asyncpg
 
+from src.config.database import get_database_url
+
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://sarthi:sarthi@localhost:5432/sarthi")
+DATABASE_URL = get_database_url("iterateswarm")
 
 
 @dataclass
@@ -60,9 +62,31 @@ class MissionState:
     active_alerts: str | None = None  # comma-separated
     founder_focus: str | None = None
 
+    # Trust Battery integration (V3.0)
+    trust_score: float | None = None  # 0.00-1.00 from trust battery
+    route_priority: int | None = None  # routing priority based on trust
+
     # Runtime fields (not persisted to DB)
     skip_reason: str | None = None
     data_quality: "DataQualityResult" = None
+
+    # ── Derived finance metrics (from finance_rules.py) ─────────────
+    burn_multiple: float | None = None
+    effective_runway_days: int | None = None
+    working_capital_ratio: float | None = None
+    npv_last_decision: float | None = None
+    wacc_estimate: float | None = None
+
+    # ── Guardrail state fields (from guardrails.py) ────────────────
+    last_approval_tier: str | None = None         # auto | review | blocking
+    last_reversible: bool | None = None
+    active_authority_limit: str | None = None      # founder | board | none
+    guardrail_override_reason: str | None = None
+
+    # ── Decision pipeline fields ────────────────────────────────────
+    guardrail_risk_type: str | None = None         # financial | legal | reputational | operational | none
+    guardrail_blocking: bool = False
+    investor_facing_alert: bool = False
 
 
 async def get_mission_state(tenant_id: str) -> MissionState:
@@ -82,7 +106,11 @@ async def get_mission_state(tenant_id: str) -> MissionState:
             """
             SELECT tenant_id, timestamp, runway_days, burn_alert, burn_severity,
                    mrr_trend, churn_rate, churn_risk_users, top_feature_ask,
-                   error_spike, active_alerts, founder_focus
+                   error_spike, active_alerts, founder_focus, trust_score, route_priority,
+                   burn_multiple, effective_runway_days, working_capital_ratio,
+                   npv_last_decision, wacc_estimate, last_approval_tier, last_reversible,
+                   active_authority_limit, guardrail_override_reason, guardrail_risk_type,
+                   guardrail_blocking, investor_facing_alert
             FROM mission_states
             WHERE tenant_id = $1
             ORDER BY timestamp DESC
@@ -106,6 +134,20 @@ async def get_mission_state(tenant_id: str) -> MissionState:
                 error_spike=row["error_spike"],
                 active_alerts=row["active_alerts"],
                 founder_focus=row["founder_focus"],
+                trust_score=row["trust_score"],
+                route_priority=row["route_priority"],
+                burn_multiple=row["burn_multiple"],
+                effective_runway_days=row["effective_runway_days"],
+                working_capital_ratio=row["working_capital_ratio"],
+                npv_last_decision=row["npv_last_decision"],
+                wacc_estimate=row["wacc_estimate"],
+                last_approval_tier=row["last_approval_tier"],
+                last_reversible=row["last_reversible"],
+                active_authority_limit=row["active_authority_limit"],
+                guardrail_override_reason=row["guardrail_override_reason"],
+                guardrail_risk_type=row["guardrail_risk_type"],
+                guardrail_blocking=row["guardrail_blocking"],
+                investor_facing_alert=row["investor_facing_alert"],
             )
     except Exception as e:
         log.warning(f"MissionState lookup failed for {tenant_id}: {e}")
@@ -131,9 +173,14 @@ async def update_mission_state(state: MissionState) -> bool:
             INSERT INTO mission_states (
                 tenant_id, timestamp, runway_days, burn_alert, burn_severity,
                 mrr_trend, churn_rate, churn_risk_users, top_feature_ask,
-                error_spike, active_alerts, founder_focus, created_at
+                error_spike, active_alerts, founder_focus, trust_score, route_priority,
+                burn_multiple, effective_runway_days, working_capital_ratio,
+                npv_last_decision, wacc_estimate, last_approval_tier, last_reversible,
+                active_authority_limit, guardrail_override_reason, guardrail_risk_type,
+                guardrail_blocking, investor_facing_alert, created_at
             )
-            VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+            VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW())
             ON CONFLICT (tenant_id) DO UPDATE SET
                 timestamp = NOW(),
                 runway_days = EXCLUDED.runway_days,
@@ -145,7 +192,21 @@ async def update_mission_state(state: MissionState) -> bool:
                 top_feature_ask = EXCLUDED.top_feature_ask,
                 error_spike = EXCLUDED.error_spike,
                 active_alerts = EXCLUDED.active_alerts,
-                founder_focus = EXCLUDED.founder_focus
+                founder_focus = EXCLUDED.founder_focus,
+                trust_score = EXCLUDED.trust_score,
+                route_priority = EXCLUDED.route_priority,
+                burn_multiple = EXCLUDED.burn_multiple,
+                effective_runway_days = EXCLUDED.effective_runway_days,
+                working_capital_ratio = EXCLUDED.working_capital_ratio,
+                npv_last_decision = EXCLUDED.npv_last_decision,
+                wacc_estimate = EXCLUDED.wacc_estimate,
+                last_approval_tier = EXCLUDED.last_approval_tier,
+                last_reversible = EXCLUDED.last_reversible,
+                active_authority_limit = EXCLUDED.active_authority_limit,
+                guardrail_override_reason = EXCLUDED.guardrail_override_reason,
+                guardrail_risk_type = EXCLUDED.guardrail_risk_type,
+                guardrail_blocking = EXCLUDED.guardrail_blocking,
+                investor_facing_alert = EXCLUDED.investor_facing_alert
             """,
             state.tenant_id,
             state.runway_days,
@@ -158,6 +219,20 @@ async def update_mission_state(state: MissionState) -> bool:
             state.error_spike,
             state.active_alerts,
             state.founder_focus,
+            state.trust_score,
+            state.route_priority,
+            state.burn_multiple,
+            state.effective_runway_days,
+            state.working_capital_ratio,
+            state.npv_last_decision,
+            state.wacc_estimate,
+            state.last_approval_tier,
+            state.last_reversible,
+            state.active_authority_limit,
+            state.guardrail_override_reason,
+            state.guardrail_risk_type,
+            state.guardrail_blocking,
+            state.investor_facing_alert,
         )
         await conn.close()
         log.info(f"MissionState updated for tenant: {state.tenant_id}")

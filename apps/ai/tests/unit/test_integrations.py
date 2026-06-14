@@ -142,17 +142,13 @@ def test_product_db_returns_users_as_int():
     assert isinstance(result["active_users_30d"], int)
 
 
-def test_qdrant_embed_returns_768_floats():
-    """_get_embedding produces 768-dim float vectors from Ollama."""
-    import requests
-    # Skip if Ollama not available
-    try:
-        r = requests.get("http://localhost:11434/api/tags", timeout=3)
-        if r.status_code != 200:
-            pytest.skip("Ollama not available")
-    except Exception:
-        pytest.skip("Ollama not available")
+def test_qdrant_embed_returns_2048_floats():
+    """_get_embedding produces 2048-dim float vectors from OpenRouter."""
+    import os
+    # Skip if OpenRouter not available
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        pytest.skip("OPENROUTER_API_KEY not set")
     from src.memory.qdrant_ops import _get_embedding
     vec = _get_embedding("test query")
-    assert len(vec) == 768
+    assert len(vec) == 2048, f"Expected 2048 dims, got {len(vec)}"
     assert all(isinstance(v, float) for v in vec)

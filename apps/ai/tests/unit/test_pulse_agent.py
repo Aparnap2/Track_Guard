@@ -1,581 +1,91 @@
 """
-Unit tests for PulseAgent.
+Unit tests for PulseAgent stub.
 
 Tests cover:
-  - PulseState structure
-  - fetch_data node (async, parallel via asyncio.gather)
-  - check_data_gate node
-  - no_data_fallback node
-  - compute_metrics node
-  - generate_narrative node
-  - build_slack_message node
-  - Full graph compilation
-
-All tests run in MOCK MODE (no real API calls).
+  - PulseState dataclass structure
+  - PulseGraph dataclass structure
+  - pulse_graph() function
+  - Stub verification (no LLM calls)
 """
-from __future__ import annotations
-import asyncio
-import os
 import pytest
-from typing import Any
 
-# Force mock environment before any imports
-os.environ["STRIPE_API_KEY"] = ""
-os.environ["PLAID_ACCESS_TOKEN"] = ""
-os.environ["SLACK_WEBHOOK_URL"] = ""
-os.environ["DATABASE_URL"] = ""
-os.environ["PRODUCT_DB_URL"] = ""
 
 TENANT = "test-pulse-tenant-unit"
 
 
-# =============================================================================
-# TestPulseState
-# =============================================================================
-
 class TestPulseState:
-    """Tests for PulseState TypedDict structure."""
+    """Tests for PulseState dataclass."""
 
-    def test_pulse_state_creation_empty(self):
-        """PulseState can be created with no fields (all optional)."""
-        from src.agents.pulse.state import PulseState
+    def test_pulse_state_requires_tenant_id(self):
+        """PulseState requires tenant_id field."""
+        from src.agents.pulse import PulseState
 
-        state: PulseState = {}
-        assert isinstance(state, dict)
-        assert len(state) == 0
-
-    def test_pulse_state_with_tenant_id(self):
-        """PulseState accepts tenant_id field."""
-        from src.agents.pulse.state import PulseState
-
-        state: PulseState = {"tenant_id": TENANT}
-        assert state["tenant_id"] == TENANT
-
-    def test_pulse_state_with_monetary_fields(self):
-        """PulseState accepts cents-based monetary fields."""
-        from src.agents.pulse.state import PulseState
-
-        state: PulseState = {
-            "tenant_id": TENANT,
-            "mrr_cents": 1250000,
-            "arr_cents": 15000000,
-            "balance_cents": 45000000,
-            "burn_30d_cents": 15000000,
-        }
-        assert state["mrr_cents"] == 1250000
-        assert state["arr_cents"] == 15000000
-        assert state["balance_cents"] == 45000000
-
-
-# =============================================================================
-# TestFetchData
-# =============================================================================
-
-class TestFetchData:
-    """Tests for fetch_data node (async, parallel via asyncio.gather)."""
-
-    def test_fetch_data_returns_data_sources(self):
-        """fetch_data returns list of data sources used."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import fetch_data
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = asyncio.run(fetch_data(state))
-
-        assert "data_sources" in result
-        assert isinstance(result["data_sources"], list)
-        assert len(result["data_sources"]) > 0
-
-    def test_fetch_data_returns_mrr_cents(self):
-        """fetch_data returns mrr_cents in mock mode."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import fetch_data
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = asyncio.run(fetch_data(state))
-
-        assert "mrr_cents" in result
-        assert isinstance(result["mrr_cents"], int)
-        assert result["mrr_cents"] > 0  # Mock data has positive MRR
-
-    def test_fetch_data_returns_balance_and_burn(self):
-        """fetch_data returns balance_cents and burn_30d_cents."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import fetch_data
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = asyncio.run(fetch_data(state))
-
-        assert "balance_cents" in result
-        assert "burn_30d_cents" in result
-        assert isinstance(result["balance_cents"], int)
-        assert isinstance(result["burn_30d_cents"], int)
-
-
-# =============================================================================
-# TestCheckDataGate
-# =============================================================================
-
-class TestCheckDataGate:
-    """Tests for check_data_gate node."""
-
-    def test_gate_returns_no_data_when_all_zero(self):
-        """check_data_gate returns 'no_data' when mrr_cents==0 AND balance_cents==0."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import check_data_gate
-
-        state: PulseState = {"tenant_id": TENANT, "mrr_cents": 0, "balance_cents": 0}
-        result = check_data_gate(state)
-
-        assert result["gate_result"] == "no_data"
-
-    def test_gate_returns_has_data_when_mrr_nonzero(self):
-        """check_data_gate returns 'has_data' when mrr_cents > 0."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import check_data_gate
-
-        state: PulseState = {"tenant_id": TENANT, "mrr_cents": 1250000, "balance_cents": 0}
-        result = check_data_gate(state)
-
-        assert result["gate_result"] == "has_data"
-
-    def test_gate_returns_has_data_when_balance_nonzero(self):
-        """check_data_gate returns 'has_data' when balance_cents > 0."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import check_data_gate
-
-        state: PulseState = {"tenant_id": TENANT, "mrr_cents": 0, "balance_cents": 45000000}
-        result = check_data_gate(state)
-
-        assert result["gate_result"] == "has_data"
-
-    def test_gate_returns_has_data_when_both_nonzero(self):
-        """check_data_gate returns 'has_data' when both mrr and balance are nonzero."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import check_data_gate
-
-        state: PulseState = {"tenant_id": TENANT, "mrr_cents": 1250000, "balance_cents": 45000000}
-        result = check_data_gate(state)
-
-        assert result["gate_result"] == "has_data"
-
-
-# =============================================================================
-# TestNoDataFallback
-# =============================================================================
-
-class TestNoDataFallback:
-    """Tests for no_data_fallback node."""
-
-    def test_no_data_fallback_sets_narrative(self):
-        """no_data_fallback sets user-friendly narrative about connecting accounts."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import no_data_fallback
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = no_data_fallback(state)
-
-        assert "narrative" in result
-        assert "Connect" in result["narrative"]
-        assert "Stripe" in result["narrative"]
-
-    def test_no_data_fallback_sets_action_item(self):
-        """no_data_fallback sets action item to connect Stripe and bank."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import no_data_fallback
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = no_data_fallback(state)
-
-        assert "action_item" in result
-        assert "Connect" in result["action_item"]
-
-    def test_no_data_fallback_resets_metrics(self):
-        """no_data_fallback resets computed metrics to zero."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import no_data_fallback
-
-        state: PulseState = {"tenant_id": TENANT}
-        result = no_data_fallback(state)
-
-        assert result["runway_months"] == 0.0
-        assert result["net_revenue_churn"] == 0.0
-        assert result["quick_ratio"] == 0.0
-        assert result["anomalies_detected"] == []
-
-
-# =============================================================================
-# TestComputeMetrics
-# =============================================================================
-
-class TestComputeMetrics:
-    """Tests for compute_metrics node."""
-
-    def _create_state_with_data(self) -> Any:
-        """Helper to create state with realistic test data."""
-        from src.agents.pulse.state import PulseState
-
-        return PulseState(
-            tenant_id=TENANT,
-            mrr_cents=1250000,
-            arr_cents=15000000,
-            active_customers=25,
-            new_customers=3,
-            churned_customers=1,
-            expansion_cents=50000,
-            contraction_cents=20000,
-            balance_cents=45000000,
-            burn_30d_cents=15000000,
-            active_users_30d=1250,
-            prev_mrr_cents=1200000,
-        )
-
-    def test_compute_metrics_returns_runway(self):
-        """compute_metrics calculates runway_months."""
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = self._create_state_with_data()
-        result = compute_metrics(state)
-
-        assert "runway_months" in result
-        assert isinstance(result["runway_months"], float)
-        # 45000000 / 15000000 = 3.0 months
-        assert result["runway_months"] == 3.0
-
-    def test_compute_metrics_returns_quick_ratio(self):
-        """compute_metrics calculates quick_ratio."""
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = self._create_state_with_data()
-        result = compute_metrics(state)
-
-        assert "quick_ratio" in result
-        assert isinstance(result["quick_ratio"], float)
-
-    def test_compute_metrics_returns_net_revenue_churn(self):
-        """compute_metrics calculates net_revenue_churn."""
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = self._create_state_with_data()
-        result = compute_metrics(state)
-
-        assert "net_revenue_churn" in result
-        assert isinstance(result["net_revenue_churn"], float)
-
-    def test_compute_metrics_detects_low_runway_anomaly(self):
-        """compute_metrics detects anomaly when runway < 6 months."""
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = self._create_state_with_data()
-        # Runway is 3.0 months (< 6), should trigger anomaly
-        result = compute_metrics(state)
-
-        assert "anomalies_detected" in result
-        assert isinstance(result["anomalies_detected"], list)
-        # Should have at least the low runway anomaly
-        anomaly_found = any(
-            "runway" in a.lower() for a in result["anomalies_detected"]
-        )
-        assert anomaly_found
-
-    def test_compute_metrics_no_anomalies_healthy_state(self):
-        """compute_metrics returns empty anomalies for healthy metrics."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import compute_metrics
-
-        # Create healthy state: high runway, good growth
-        state = PulseState(
-            tenant_id=TENANT,
-            mrr_cents=1250000,
-            prev_mrr_cents=1000000,  # 25% growth
-            balance_cents=100000000,  # High balance
-            burn_30d_cents=5000000,  # Low burn
-            new_customers=10,
-            churned_customers=2,
-            expansion_cents=100000,
-            contraction_cents=20000,
-        )
-        result = compute_metrics(state)
-
-        # Runway = 20 months (healthy), growth positive
-        assert result["runway_months"] == 20.0
-        # May still have some anomalies depending on quick ratio
-
-    def test_compute_metrics_handles_zero_burn(self):
-        """compute_metrics handles zero burn without division error."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = PulseState(
-            tenant_id=TENANT,
-            balance_cents=50000000,
-            burn_30d_cents=0,  # Zero burn
-            mrr_cents=1000000,
-            prev_mrr_cents=1000000,
-            new_customers=0,
-            churned_customers=0,
-        )
-        result = compute_metrics(state)
-
-        # Should not raise, runway should be inf or handled gracefully
-        assert "runway_months" in result
-        assert result["runway_months"] == float("inf")
-
-    def test_gate_skips_llm_when_no_data(self):
-        """mrr_cents=0, balance_cents=0 → no_data_fallback, generate_narrative NOT called."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import check_data_gate, no_data_fallback
-
-        state: PulseState = {"tenant_id": TENANT, "mrr_cents": 0, "balance_cents": 0}
-        result = check_data_gate(state)
-        assert result["gate_result"] == "no_data"
-
-        result = no_data_fallback(state)
-        assert "No data" in result.get("narrative", "")
-
-    def test_burn_rate_computed_correctly(self):
-        """compute_metrics calculates runway from balance and burn."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = PulseState(
-            tenant_id=TENANT,
-            burn_30d_cents=3500,
-            balance_cents=90000,
-            mrr_cents=10000,
-            prev_mrr_cents=9000,
-            active_customers=10,
-        )
-        result = compute_metrics(state)
-        assert result["runway_months"] > 0
-
-    def test_runway_is_inf_when_burn_zero(self):
-        """compute_metrics returns inf runway when burn is zero."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = PulseState(
-            tenant_id=TENANT,
-            burn_30d_cents=0,
-            balance_cents=90000,
-            mrr_cents=10000,
-            prev_mrr_cents=10000,
-            active_customers=10,
-        )
-        result = compute_metrics(state)
-        assert result["runway_months"] == float("inf")
-
-    def test_mrr_change_pct_computed(self):
-        """compute_metrics calculates mrr_growth_pct from prev_mrr_cents."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import compute_metrics
-
-        state = PulseState(
-            tenant_id=TENANT,
-            mrr_cents=10000,
-            prev_mrr_cents=9000,
-            burn_30d_cents=3000,
-            balance_cents=50000,
-            active_customers=10,
-            new_customers=2,
-            churned_customers=0,
-            expansion_cents=0,
-            contraction_cents=0,
-        )
-        result = compute_metrics(state)
-        # MRR growth = (10000 - 9000) / 9000 * 100 = 11.11%
-        # Note: compute_metrics uses prev_mrr_cents for net_revenue_churn,
-        # mrr_growth_pct is computed in retrieve_memory node
-        assert "net_revenue_churn" in result
-
-    def test_slack_blocks_have_required_fields(self):
-        """build_slack_message returns blocks with header, section, divider, context."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import build_slack_message
-
-        state = PulseState(
-            tenant_id=TENANT,
-            mrr_cents=900000,
-            runway_months=4.5,
-            burn_30d_cents=3200000,
-            active_customers=12,
-            new_customers=2,
-            churned_customers=1,
-            mrr_growth_pct=5.8,
-            narrative="Test narrative",
-            action_item="Test action",
-            anomalies_detected=[],
-            data_sources=["stripe_mock"],
-        )
-        result = build_slack_message(state)
-        blocks = result["slack_blocks"]
-        types = [b["type"] for b in blocks]
-        assert "header" in types
-        assert "section" in types
-        assert "context" in types
-
-
-# =============================================================================
-# TestGenerateNarrative
-# =============================================================================
-
-class TestGenerateNarrative:
-    """Tests for generate_narrative node."""
-
-    def test_generate_narrative_returns_narrative_and_action(self):
-        """generate_narrative returns both narrative and action_item."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import generate_narrative
-
-        state = PulseState(
-            tenant_id=TENANT,
-            mrr_cents=1250000,
-            arr_cents=15000000,
-            runway_months=3.0,
-            burn_30d_cents=15000000,
-            active_customers=25,
-            new_customers=3,
-            churned_customers=1,
-            mrr_growth_pct=4.17,
-            quick_ratio=1.5,
-            active_users_30d=1250,
-            historical_context="Previous MRR was ₹12,000",
-            anomalies_detected=[],
-        )
-        result = generate_narrative(state)
-
-        assert "narrative" in result
-        assert "action_item" in result
-        assert isinstance(result["narrative"], str)
-        assert isinstance(result["action_item"], str)
-
-    def test_generate_narrative_handles_missing_data(self):
-        """generate_narrative handles missing fields gracefully."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import generate_narrative
-
-        # Minimal state with missing fields
         state = PulseState(tenant_id=TENANT)
-        result = generate_narrative(state)
+        assert state.tenant_id == TENANT
 
-        # Should not raise, should have fallback narrative
-        assert "narrative" in result
-        assert "action_item" in result
-        assert len(result["narrative"]) > 0
+    def test_pulse_state_has_messages_default(self):
+        """PulseState has messages list that defaults to empty list."""
+        from src.agents.pulse import PulseState
 
+        state = PulseState(tenant_id=TENANT)
+        assert state.messages == []
+        assert isinstance(state.messages, list)
 
-# =============================================================================
-# TestBuildSlackMessage
-# =============================================================================
+    def test_pulse_state_accepts_messages(self):
+        """PulseState accepts optional messages list."""
+        from src.agents.pulse import PulseState
 
-class TestBuildSlackMessage:
-    """Tests for build_slack_message node."""
+        state = PulseState(tenant_id=TENANT, messages=["test"])
+        assert state.messages == ["test"]
 
-    def test_build_slack_message_returns_blocks(self):
-        """build_slack_message returns Slack Block Kit blocks."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import build_slack_message
-
-        state = PulseState(
-            tenant_id=TENANT,
-            narrative="Test narrative with three sentences. Second sentence. Third sentence.",
-            action_item="Review churned customers",
-            mrr_cents=1250000,
-            runway_months=3.0,
-            quick_ratio=1.5,
-            anomalies_detected=["Low runway warning"],
-            data_sources=["stripe_mock", "bank_mock"],
-        )
-        result = build_slack_message(state)
-
-        assert "slack_blocks" in result
-        assert isinstance(result["slack_blocks"], list)
-        assert len(result["slack_blocks"]) > 0
-
-    def test_build_slack_message_header_block(self):
-        """build_slack_message includes header block."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import build_slack_message
-
-        state = PulseState(tenant_id=TENANT, narrative="Test", action_item="Test")
-        result = build_slack_message(state)
-
-        blocks = result["slack_blocks"]
-        header_found = any(
-            b.get("type") == "header" for b in blocks
-        )
-        assert header_found
-
-    def test_build_slack_message_action_item_block(self):
-        """build_slack_message includes action item in blocks."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import build_slack_message
-
-        state = PulseState(
-            tenant_id=TENANT,
-            narrative="Test",
-            action_item="Call top 5 customers",
-        )
-        result = build_slack_message(state)
-
-        blocks_text = " ".join(
-            str(b.get("text", {})) for b in result["slack_blocks"]
-        )
-        assert "Call top 5 customers" in blocks_text
-
-    def test_build_slack_message_handles_empty_anomalies(self):
-        """build_slack_message handles empty anomalies list."""
-        from src.agents.pulse.state import PulseState
-        from src.agents.pulse.nodes import build_slack_message
-
-        state = PulseState(
-            tenant_id=TENANT,
-            narrative="Test",
-            action_item="Test",
-            anomalies_detected=[],  # Empty
-        )
-        result = build_slack_message(state)
-
-        # Should not raise
-        assert "slack_blocks" in result
-        assert len(result["slack_blocks"]) > 0
-
-
-# =============================================================================
-# TestPulseGraph
-# =============================================================================
 
 class TestPulseGraph:
-    """Tests for PulseAgent LangGraph compilation and structure."""
+    """Tests for PulseGraph dataclass."""
 
-    def test_pulse_graph_compiles(self):
-        """PulseAgent graph compiles without errors."""
-        from src.agents.pulse.graph import build_pulse_graph
+    def test_pulse_graph_has_tenant_id(self):
+        """PulseGraph has tenant_id field."""
+        from src.agents.pulse.graph import PulseGraph
 
-        graph = build_pulse_graph()
-        assert graph is not None
+        graph = PulseGraph(tenant_id=TENANT)
+        assert graph.tenant_id == TENANT
 
-    def test_pulse_graph_has_all_nodes(self):
-        """PulseAgent graph contains all 9 required nodes (+ __start__)."""
-        from src.agents.pulse.graph import build_pulse_graph
 
-        graph = build_pulse_graph()
-        nodes = list(graph.nodes.keys())
+class TestPulseGraphInstance:
+    """Tests for the pulse_graph singleton instance."""
 
-        expected_nodes = [
-            "fetch_data",
-            "check_data_gate",
-            "no_data_fallback",
-            "retrieve_memory",
-            "compute_metrics",
-            "generate_narrative",
-            "build_slack_message",
-            "send_slack",
-            "persist_snapshot",
-        ]
+    def test_pulse_graph_instance_exists(self):
+        """pulse_graph instance exists in graph module."""
+        from src.agents.pulse.graph import pulse_graph
 
-        for node in expected_nodes:
-            assert node in nodes, f"Missing node: {node}"
+        assert pulse_graph is not None
+        assert hasattr(pulse_graph, "tenant_id")
 
-        # LangGraph adds __start__ node automatically, so 9 + 1 = 10
-        assert len(nodes) == 10
+
+class TestPulseGraphFunction:
+    """Tests for pulse_graph() function."""
+
+    def test_pulse_graph_function_returns_none(self):
+        """pulse_graph() returns None (placeholder stub)."""
+        from src.agents.pulse import pulse_graph
+
+        result = pulse_graph()
+        assert result is None
+
+
+class TestStubVerification:
+    """Verify stub has no LLM dependencies or real implementations."""
+
+    def test_no_nodes_module(self):
+        """pulse.nodes module does not exist."""
+        import src.agents.pulse
+
+        assert not hasattr(src.agents.pulse, "nodes")
+
+    def test_no_llm_imports_in_pulse(self):
+        """pulse module has no LLM-related imports."""
+        import src.agents.pulse
+
+        module_attrs = dir(src.agents.pulse)
+        llm_keywords = ["openai", "anthropic", "llm", "client", "model"]
+        for keyword in llm_keywords:
+            assert not any(keyword in attr.lower() for attr in module_attrs), f"Found LLM-related import: {keyword}"

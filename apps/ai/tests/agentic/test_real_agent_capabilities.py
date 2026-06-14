@@ -8,8 +8,7 @@ These tests verify the LLM can execute actual agent logic, not just respond to c
 4. Respect Pydantic contracts
 
 Run with:
-    export OPENAI_API_KEY="your-key"
-    export OPENAI_BASE_URL="https://ollama.com/v1"
+    export OLLAMA_BASE_URL="http://localhost:11434"
     export LLM_MODEL="qwen3-next:80b-cloud"
     python -m pytest tests/agentic/test_real_agent_capabilities.py -v
 """
@@ -18,8 +17,31 @@ import os
 import pytest
 from pydantic import ValidationError
 
-# Import the Guardian schemas we're testing against
 from src.schemas.guardian import AlertDecision, GuardianMessage
+
+
+def call_llm(ollama_client, llm_model, prompt, max_tokens=500, temperature=0.0):
+    """Call LLM and return content."""
+    options = {"num_predict": max_tokens, "json_mode": True}
+    if temperature != 0.0:
+        options["temperature"] = temperature
+
+    response = ollama_client.chat(
+        model=llm_model,
+        messages=[{"role": "user", "content": prompt}],
+        options=options,
+    )
+    return response["message"]["content"].strip()
+
+
+def parse_json_response(content):
+    """Parse JSON from LLM response, handling markdown and thinking blocks."""
+    from src.config.llm import extract_json_content
+
+    try:
+        return json.loads(extract_json_content(content))
+    except json.JSONDecodeError as e:
+        pytest.fail(f"LLM didn't return valid JSON: {e}\nContent: {content}")
 
 
 # ============================================================================
@@ -27,7 +49,7 @@ from src.schemas.guardian import AlertDecision, GuardianMessage
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_detects_financial_anomaly(openai_client, llm_model):
+def test_llm_detects_financial_anomaly(ollama_client, llm_model):
     """
     LLM should identify 'runway < 180 days' as critical from raw financial data.
 
@@ -68,38 +90,18 @@ def test_llm_detects_financial_anomaly(openai_client, llm_model):
     Respond ONLY with valid JSON, no markdown or explanation.
     """
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
-        temperature=0.0,  # Deterministic for rule-based logic
-    )
-
-    content = response.choices[0].message.content.strip()
+    content = call_llm(ollama_client, llm_model, prompt, max_tokens=500)
     print(f"\n[LLM Response]\n{content}")
 
-    # Parse JSON output
-    try:
-        # Handle potential markdown code blocks
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+    result = parse_json_response(content)
 
-        result = json.loads(content)
-    except json.JSONDecodeError as e:
-        pytest.fail(f"LLM didn't return valid JSON: {e}\nContent: {content}")
-
-    # Verify anomaly detection
     assert "anomalies" in result, "Missing 'anomalies' key"
     assert "FG-04" in result["anomalies"] or "runway" in str(result.get("reasoning", "")).lower(), \
         f"LLM failed to detect runway compression. Result: {result}"
 
-    # Verify runway calculation (220000 / 60000 = 3.67 months ≈ 110 days)
     assert result.get("runway_days", 0) < 180, \
         f"Runway should be < 180 days (got {result.get('runway_days')})"
 
-    # Verify severity classification
     assert result.get("severity") == "critical", \
         f"Runway < 180 days should be 'critical', got {result.get('severity')}"
 
@@ -109,7 +111,7 @@ def test_llm_detects_financial_anomaly(openai_client, llm_model):
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_respects_pydantic_schema(openai_client, llm_model):
+def test_llm_respects_pydantic_schema(ollama_client, llm_model):
     """
     LLM output must parse into AlertDecision schema.
     Tests that LLM can follow structured output requirements.
@@ -141,34 +143,16 @@ def test_llm_respects_pydantic_schema(openai_client, llm_model):
     Respond ONLY with valid JSON, no markdown.
     """
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=300,
-        temperature=0.0,
-    )
-
-    content = response.choices[0].message.content.strip()
+    content = call_llm(ollama_client, llm_model, prompt, max_tokens=300)
     print(f"\n[LLM Response]\n{content}")
 
-    # Parse JSON
-    try:
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+    decision_data = parse_json_response(content)
 
-        decision_data = json.loads(content)
-    except json.JSONDecodeError as e:
-        pytest.fail(f"LLM didn't return valid JSON: {e}\nContent: {content}")
-
-    # Validate against Pydantic schema
     try:
         decision = AlertDecision(**decision_data)
     except ValidationError as e:
         pytest.fail(f"LLM output failed Pydantic validation:\n{e}\nData: {decision_data}")
 
-    # Verify semantic correctness
     assert decision.should_alert is True, "Should alert for FG-04"
     assert decision.severity == "critical", "Runway < 180 days is critical"
     assert "FG-04" in decision.primary_signal or "runway" in decision.primary_signal.lower()
@@ -179,7 +163,7 @@ def test_llm_respects_pydantic_schema(openai_client, llm_model):
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_generates_valid_guardian_message(openai_client, llm_model):
+def test_llm_generates_valid_guardian_message(ollama_client, llm_model):
     """
     LLM must generate message that satisfies PRD contract:
     - Max 200 words
@@ -218,53 +202,32 @@ def test_llm_generates_valid_guardian_message(openai_client, llm_model):
     Respond ONLY with valid JSON, no markdown.
     """
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=400,
-        temperature=0.0,
-    )
-
-    content = response.choices[0].message.content.strip()
+    content = call_llm(ollama_client, llm_model, prompt, max_tokens=400)
     print(f"\n[LLM Response]\n{content}")
 
-    # Parse JSON
-    try:
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+    message_data = parse_json_response(content)
 
-        message_data = json.loads(content)
-    except json.JSONDecodeError as e:
-        pytest.fail(f"LLM didn't return valid JSON: {e}\nContent: {content}")
-
-    # Fix: Ensure injected_numbers are strings (not integers)
     if "injected_numbers" in message_data:
         message_data["injected_numbers"] = [
             str(n) if isinstance(n, int) else n for n in message_data["injected_numbers"]
         ]
 
-    # Validate against GuardianMessage schema
     try:
         guardian_msg = GuardianMessage(**message_data)
     except ValidationError as e:
         pytest.fail(f"LLM output failed GuardianMessage validation:\n{e}\nData: {message_data}")
 
-    # Verify PRD constraints
     assert not guardian_msg.pattern_name.startswith("FG-"), \
         "pattern_name must be name, not ID"
 
     assert len(guardian_msg.insight.split()) <= 200, \
         f"insight must be max 200 words, got {len(guardian_msg.insight.split())}"
 
-    # Check one_action has no conjunctions
     conjunctions = [" and ", ";", " then ", " after that ", " also "]
     for conj in conjunctions:
         assert conj.lower() not in guardian_msg.one_action.lower(), \
             f"one_action must be ONE action, found '{conj}'"
 
-    # Verify injected_numbers is populated
     assert len(guardian_msg.injected_numbers) > 0, \
         "injected_numbers must not be empty"
 
@@ -274,7 +237,7 @@ def test_llm_generates_valid_guardian_message(openai_client, llm_model):
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
+def test_llm_phase1_phase2_phase3_flow(ollama_client, llm_model):
     """
     Test full Thin LLM pattern:
 
@@ -289,10 +252,6 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
     - LLM generates GuardianMessage with constraints
     """
 
-    # ==========================================================================
-    # Phase 1: Data Assembly (PURE CODE - no LLM)
-    # ==========================================================================
-    # Simulate what the Python code would do in Phase 1
     financial_data = {
         "mrr": 10000,
         "burn_rate": 60000,
@@ -300,11 +259,9 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
         "monthly_churn_pct": 2.0,
     }
 
-    # Pure Python computation (Phase 1)
-    runway_days = financial_data["bank_balance"] / financial_data["burn_rate"] * 30  # ~110 days
+    runway_days = financial_data["bank_balance"] / financial_data["burn_rate"] * 30
     burn_multiple = financial_data["burn_rate"] / financial_data["mrr"] if financial_data["mrr"] > 0 else 0
 
-    # Rule-based detection (pure code, zero LLM)
     detected_patterns = []
     if runway_days < 180:
         detected_patterns.append("FG-04")
@@ -320,9 +277,6 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
 
     assert len(detected_patterns) > 0, "Phase 1 should detect at least one pattern"
 
-    # ==========================================================================
-    # Phase 2: Cognitive Decision (1 LLM call with typed input)
-    # ==========================================================================
     prompt_phase2 = f"""
     You are Phase 2: COGNITIVE DECISION
 
@@ -348,33 +302,17 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
     Respond ONLY with valid JSON.
     """
 
-    response_p2 = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt_phase2}],
-        max_tokens=200,
-        temperature=0.0,
-    )
-
-    content_p2 = response_p2.choices[0].message.content.strip()
+    content_p2 = call_llm(ollama_client, llm_model, prompt_phase2, max_tokens=200)
     print(f"\n[Phase 2 - LLM Cognitive Decision]\n{content_p2}")
 
-    # Parse and validate
     try:
-        if "```json" in content_p2:
-            content_p2 = content_p2.split("```json")[1].split("```")[0]
-        elif "```" in content_p2:
-            content_p2 = content_p2.split("```")[1].split("```")[0]
-
-        decision = AlertDecision(**json.loads(content_p2))
-    except (ValidationError, json.JSONDecodeError) as e:
+        decision = AlertDecision(**parse_json_response(content_p2))
+    except ValidationError as e:
         pytest.fail(f"Phase 2 failed: {e}\nContent: {content_p2}")
 
     assert decision.should_alert is True
     assert decision.severity == "critical"
 
-    # ==========================================================================
-    # Phase 3: Narrative Generation (1 LLM call, bounded output)
-    # ==========================================================================
     prompt_phase3 = f"""
     You are Phase 3: NARRATIVE GENERATION
 
@@ -404,28 +342,14 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
     Respond ONLY with valid JSON.
     """
 
-    response_p3 = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt_phase3}],
-        max_tokens=300,
-        temperature=0.0,
-    )
-
-    content_p3 = response_p3.choices[0].message.content.strip()
+    content_p3 = call_llm(ollama_client, llm_model, prompt_phase3, max_tokens=300)
     print(f"\n[Phase 3 - LLM Narrative Generation]\n{content_p3}")
 
-    # Parse and validate
     try:
-        if "```json" in content_p3:
-            content_p3 = content_p3.split("```json")[1].split("```")[0]
-        elif "```" in content_p3:
-            content_p3 = content_p3.split("```")[1].split("```")[0]
-
-        message = GuardianMessage(**json.loads(content_p3))
-    except (ValidationError, json.JSONDecodeError) as e:
+        message = GuardianMessage(**parse_json_response(content_p3))
+    except ValidationError as e:
         pytest.fail(f"Phase 3 failed: {e}\nContent: {content_p3}")
 
-    # Verify full flow constraints
     assert len(message.insight.split()) <= 200, "insight > 200 words"
     assert not message.pattern_name.startswith("FG-"), "pattern_name should be name, not ID"
 
@@ -440,7 +364,7 @@ def test_llm_phase1_phase2_phase3_flow(openai_client, llm_model):
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_handles_multiple_anomalies(openai_client, llm_model):
+def test_llm_handles_multiple_anomalies(ollama_client, llm_model):
     """
     Test LLM can detect and prioritize multiple anomalies.
 
@@ -483,31 +407,14 @@ def test_llm_handles_multiple_anomalies(openai_client, llm_model):
     Respond ONLY with valid JSON.
     """
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=400,
-        temperature=0.0,
-    )
-
-    content = response.choices[0].message.content.strip()
+    content = call_llm(ollama_client, llm_model, prompt, max_tokens=400)
     print(f"\n[Multi-Anomaly Response]\n{content}")
 
-    try:
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+    result = parse_json_response(content)
 
-        result = json.loads(content)
-    except json.JSONDecodeError as e:
-        pytest.fail(f"LLM didn't return valid JSON: {e}\nContent: {content}")
-
-    # Verify multiple anomalies detected
     assert len(result.get("anomalies", [])) >= 2, \
         f"Should detect at least 2 anomalies, got {result.get('anomalies')}"
 
-    # Verify prioritization (critical > warning)
     assert result.get("critical_count", 0) >= 2, \
         f"Should have at least 2 critical (FG-02, FG-04), got {result.get('critical_count')}"
 
@@ -520,7 +427,7 @@ def test_llm_handles_multiple_anomalies(openai_client, llm_model):
 # ============================================================================
 
 @pytest.mark.agentic
-def test_llm_self_corrects_invalid_output(openai_client, llm_model):
+def test_llm_self_corrects_invalid_output(ollama_client, llm_model):
     """
     Test that LLM can self-correct when given feedback about invalid output.
 
@@ -528,7 +435,6 @@ def test_llm_self_corrects_invalid_output(openai_client, llm_model):
     fails Pydantic validation, and we ask it to retry.
     """
 
-    # First response - intentionally trigger validation error
     prompt_invalid = """
     Output JSON with this INVALID structure (missing required fields):
     {
@@ -538,17 +444,9 @@ def test_llm_self_corrects_invalid_output(openai_client, llm_model):
     This is a test. Return exactly this malformed JSON.
     """
 
-    response = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt_invalid}],
-        max_tokens=200,
-        temperature=0.0,
-    )
-
-    initial_content = response.choices[0].message.content.strip()
+    initial_content = call_llm(ollama_client, llm_model, prompt_invalid, max_tokens=200)
     print(f"\n[Initial (Invalid) Response]\n{initial_content}")
 
-    # Now provide correction feedback
     prompt_correction = f"""
     The previous output was invalid. The error was: "Missing field 'pattern_name'"
 
@@ -567,25 +465,12 @@ def test_llm_self_corrects_invalid_output(openai_client, llm_model):
     Respond ONLY with valid JSON that passes Pydantic validation.
     """
 
-    response_corr = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt_correction}],
-        max_tokens=300,
-        temperature=0.0,
-    )
-
-    corrected_content = response_corr.choices[0].message.content.strip()
+    corrected_content = call_llm(ollama_client, llm_model, prompt_correction, max_tokens=300)
     print(f"\n[Corrected Response]\n{corrected_content}")
 
-    # Validate corrected output
     try:
-        if "```json" in corrected_content:
-            corrected_content = corrected_content.split("```json")[1].split("```")[0]
-        elif "```" in corrected_content:
-            corrected_content = corrected_content.split("```")[1].split("```")[0]
-
-        message = GuardianMessage(**json.loads(corrected_content))
-    except (ValidationError, json.JSONDecodeError) as e:
+        message = GuardianMessage(**parse_json_response(corrected_content))
+    except ValidationError as e:
         pytest.fail(f"LLM failed to self-correct: {e}\nContent: {corrected_content}")
 
     assert message.pattern_name == "runway_compression"

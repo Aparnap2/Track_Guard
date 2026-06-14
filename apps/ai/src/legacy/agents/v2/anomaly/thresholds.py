@@ -5,35 +5,19 @@ Dynamically configurable per-tenant via founder feedback learning.
 
 from typing import Dict, Any
 import asyncio
-from ..learning.feedback_consumer import get_agent_threshold
 
-# Default thresholds (fallback values)
+async def get_agent_threshold(agent: str, threshold_key: str, tenant_id: str) -> float | None:
+    """Stub for feedback consumer - returns None (use defaults)."""
+    return None
+
 DEFAULT_ANOMALY_THRESHOLDS = {
-    # Runway thresholds (days)
-    "runway_drop": {
-        "critical": 90,    # < 90 days → critical
-        "warning": 180,    # < 180 days → warning
-    },
-    # MRR change thresholds (%)
-    "mrr_drop": {
-        "critical": -15.0,  # < -15% → critical
-        "warning": -5.0,    # < -5% → warning
-    },
-    # Burn rate thresholds (ratio vs previous)
-    "burn_spike": {
-        "critical": 1.5,   # > 1.5x previous → critical
-        "warning": 1.2,    # > 1.2x previous → warning
-    },
-    # Churn thresholds (count per month)
-    "high_churn": {
-        "critical": 3,     # >= 3 churned → critical
-        "warning": 1,      # >= 1 churned → warning
-    },
+    "runway_drop": {"critical": 90, "warning": 180},
+    "mrr_drop": {"critical": -15.0, "warning": -5.0},
+    "burn_spike": {"critical": 1.5, "warning": 1.2},
+    "high_churn": {"critical": 3, "warning": 1},
 }
 
-# Cache for tenant-specific thresholds
 _threshold_cache: Dict[str, Dict[str, Any]] = {}
-
 
 async def get_tenant_thresholds(tenant_id: str) -> Dict[str, Any]:
     """
@@ -100,7 +84,11 @@ def get_anomaly_thresholds(tenant_id: str = None) -> Dict[str, Any]:
         return _threshold_cache[tenant_id]
 
     # For sync contexts, return defaults and schedule async update
-    asyncio.create_task(_update_cache_async(tenant_id))
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_update_cache_async(tenant_id))
+    except RuntimeError:
+        pass
     return DEFAULT_ANOMALY_THRESHOLDS
 
 

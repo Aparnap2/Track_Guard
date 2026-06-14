@@ -20,6 +20,10 @@ try:
 except ImportError:
     PG_AVAILABLE = False
 
+# Skip if DATABASE_URL not set
+if not os.environ.get("DATABASE_URL"):
+    PG_AVAILABLE = False
+
 # The Docker PostgreSQL maps internal 5432 → host 5433.
 # If the shell has DATABASE_URL with port 5432, it won't work —
 # transparently fix it.

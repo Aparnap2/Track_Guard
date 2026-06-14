@@ -14,9 +14,11 @@ from typing import Literal
 
 import asyncpg
 
+from src.config.database import get_sarthi_database_url
+
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://sarthi:sarthi@localhost:5432/sarthi")
+DATABASE_URL = get_sarthi_database_url()
 
 
 @dataclass

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost")
 QDRANT_PORT = os.environ.get("QDRANT_PORT", "6333")
 COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION", "sarthi_memory")
-EMBEDDING_DIM = 768  # nomic-embed-text produces 768-dim vectors
+EMBEDDING_DIM = 2048  # nvidia/llama-nemotron-embed-vl-1b-v2:free produces 2048-dim vectors
 
 # Singleton client
 _client: Optional[QdrantClient] = None
@@ -53,22 +53,32 @@ def _ensure_collection_exists(client: QdrantClient) -> None:
 
 def _get_embedding(text: str) -> List[float]:
     """
-    Get embedding vector for text using Ollama.
+    Get embedding vector for text using OpenRouter (nvidia/llama-nemotron-embed-vl-1b-v2:free).
 
     Args:
         text: Text to embed
 
     Returns:
-        List of floats (768-dim vector)
+        List of floats (2048-dim vector)
     """
-    from openai import OpenAI
-
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-    embed_model = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
-
-    client = OpenAI(base_url=base_url, api_key="ollama")
-    response = client.embeddings.create(model=embed_model, input=text)
-    return response.data[0].embedding
+    import httpx
+    
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    embed_model = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    
+    if not openrouter_key:
+        raise ValueError("OPENROUTER_API_KEY not set")
+    
+    with httpx.Client(base_url="https://openrouter.ai/api/v1", 
+                      headers={"Authorization": f"Bearer {openrouter_key}"},
+                      timeout=30.0) as client:
+        response = client.post(
+            "/embeddings",
+            json={"model": embed_model, "input": [text]}
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["data"][0]["embedding"]
 
 
 def _generate_point_id(tenant_id: str, content: str) -> str:

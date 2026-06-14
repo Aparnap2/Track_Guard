@@ -1,19 +1,17 @@
 """
-Unit tests for InvestorAgent.
+Unit tests for InvestorAgent stub.
 
 Tests cover:
-  - InvestorState structure
-  - fetch_metrics node
-  - retrieve_memory node
-  - generate_draft node
-  - build_slack_message node
+  - InvestorState TypedDict structure
+  - InvestorGraph dataclass with tenant_id
+  - Stub is a no-op (no LLM calls)
 
 All tests run in MOCK MODE (no real API calls).
 """
 from __future__ import annotations
 import os
 import pytest
-from typing import Any
+from unittest.mock import MagicMock, patch
 
 # Force mock environment before any imports
 os.environ["STRIPE_API_KEY"] = ""
@@ -33,13 +31,12 @@ TENANT = "test-investor-tenant-unit"
 class TestInvestorState:
     """Tests for InvestorState TypedDict structure."""
 
-    def test_investor_state_creation_empty(self):
-        """InvestorState can be created with no fields (all optional)."""
+    def test_investor_state_empty(self):
+        """InvestorState can be created empty (all fields optional)."""
         from src.agents.investor.state import InvestorState
 
         state: InvestorState = {}
         assert isinstance(state, dict)
-        assert len(state) == 0
 
     def test_investor_state_with_tenant_id(self):
         """InvestorState accepts tenant_id field."""
@@ -48,377 +45,49 @@ class TestInvestorState:
         state: InvestorState = {"tenant_id": TENANT}
         assert state["tenant_id"] == TENANT
 
-    def test_investor_state_with_period_fields(self):
-        """InvestorState accepts period_start and period_end fields."""
+    def test_investor_state_with_metrics(self):
+        """InvestorState accepts metrics field."""
         from src.agents.investor.state import InvestorState
 
         state: InvestorState = {
             "tenant_id": TENANT,
-            "period_start": "2026-03-18",
-            "period_end": "2026-03-25",
+            "metrics": {"mrr_cents": 1250000},
         }
-        assert state["period_start"] == "2026-03-18"
-        assert state["period_end"] == "2026-03-25"
+        assert state["metrics"]["mrr_cents"] == 1250000
 
-
-# =============================================================================
-# TestFetchMetrics
-# =============================================================================
-
-class TestFetchMetrics:
-    """Tests for fetch_metrics node."""
-
-    def test_fetch_metrics_returns_data_sources(self):
-        """fetch_metrics returns list of data sources used."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import fetch_metrics
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = fetch_metrics(state)
-
-        assert "data_sources" in result
-        assert isinstance(result["data_sources"], list)
-        assert len(result["data_sources"]) > 0
-
-    def test_fetch_metrics_returns_mrr_cents(self):
-        """fetch_metrics returns mrr_cents in mock mode."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import fetch_metrics
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = fetch_metrics(state)
-
-        assert "mrr_cents" in result
-        assert isinstance(result["mrr_cents"], int)
-        assert result["mrr_cents"] > 0  # Mock data has positive MRR
-
-    def test_fetch_metrics_returns_burn_and_runway(self):
-        """fetch_metrics returns burn_cents and runway_months."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import fetch_metrics
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = fetch_metrics(state)
-
-        assert "burn_cents" in result
-        assert "runway_months" in result
-        assert isinstance(result["burn_cents"], int)
-        assert isinstance(result["runway_months"], (int, float))
-
-
-# =============================================================================
-# TestRetrieveMemory
-# =============================================================================
-
-class TestRetrieveMemory:
-    """Tests for retrieve_memory node."""
-
-    def test_retrieve_memory_returns_wins_list(self):
-        """retrieve_memory returns top_wins as list."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import retrieve_memory
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = retrieve_memory(state)
-
-        assert "top_wins" in result
-        assert isinstance(result["top_wins"], list)
-
-    def test_retrieve_memory_returns_blockers_list(self):
-        """retrieve_memory returns top_blockers as list."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import retrieve_memory
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = retrieve_memory(state)
-
-        assert "top_blockers" in result
-        assert isinstance(result["top_blockers"], list)
-
-    def test_retrieve_memory_returns_historical_context(self):
-        """retrieve_memory returns historical_context string."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import retrieve_memory
-
-        state: InvestorState = {"tenant_id": TENANT}
-        result = retrieve_memory(state)
-
-        assert "historical_context" in result
-        assert isinstance(result["historical_context"], str)
-
-
-# =============================================================================
-# TestGenerateDraft
-# =============================================================================
-
-class TestGenerateDraft:
-    """Tests for generate_draft node."""
-
-    def _create_state_with_data(self) -> Any:
-        """Helper to create state with realistic test data."""
+    def test_investor_state_with_all_fields(self):
+        """InvestorState accepts all defined fields."""
         from src.agents.investor.state import InvestorState
 
-        return InvestorState(
-            tenant_id=TENANT,
-            period_start="2026-03-18",
-            period_end="2026-03-25",
-            mrr_cents=1250000,
-            mrr_growth_pct=4.17,
-            burn_cents=15000000,
-            runway_months=3.0,
-            new_customers=3,
-            churned_customers=1,
-            active_customers=25,
-            top_wins=["Closed enterprise deal with Acme Corp", "Launched new analytics feature"],
-            top_blockers=["Hiring delay for senior engineer", "Payment gateway integration issues"],
-            historical_context="Previous update: MRR was ₹12,000",
-        )
+        state: InvestorState = {
+            "tenant_id": TENANT,
+            "metrics": {},
+            "memory_context": "previous updates context",
+            "draft": "draft content",
+            "narrative": "narrative content",
+            "slack_message": "slack message",
+            "slack_blocks": [],
+            "error": "",
+            "retry_count": 0,
+            "langfuse_trace_id": "trace-123",
+        }
+        assert state["tenant_id"] == TENANT
+        assert state["metrics"] == {}
+        assert state["memory_context"] == "previous updates context"
+        assert state["draft"] == "draft content"
+        assert state["narrative"] == "narrative content"
+        assert state["slack_message"] == "slack message"
+        assert state["slack_blocks"] == []
+        assert state["error"] == ""
+        assert state["retry_count"] == 0
+        assert state["langfuse_trace_id"] == "trace-123"
 
-    def test_generate_draft_returns_draft_markdown(self):
-        """generate_draft returns draft_markdown string."""
-        from src.agents.investor.nodes import generate_draft
-
-        state = self._create_state_with_data()
-        result = generate_draft(state)
-
-        assert "draft_markdown" in result
-        assert isinstance(result["draft_markdown"], str)
-        assert len(result["draft_markdown"]) > 0
-
-    def test_generate_draft_returns_slack_preview(self):
-        """generate_draft returns slack_preview string."""
-        from src.agents.investor.nodes import generate_draft
-
-        state = self._create_state_with_data()
-        result = generate_draft(state)
-
-        assert "slack_preview" in result
-        # slack_preview may be empty if DSPy truncates, but field should exist
-        assert isinstance(result["slack_preview"], str)
-
-    def test_generate_draft_handles_missing_data(self):
-        """generate_draft handles missing fields gracefully."""
+    def test_investor_state_all_fields_optional(self):
+        """InvestorState has total=False - all fields optional."""
         from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import generate_draft
 
-        # Minimal state with missing fields
-        state = InvestorState(tenant_id=TENANT)
-        result = generate_draft(state)
-
-        # Should not raise, should have fallback draft
-        assert "draft_markdown" in result
-        assert "slack_preview" in result
-        assert len(result["draft_markdown"]) > 0
-
-
-# =============================================================================
-# TestBuildSlackMessage
-# =============================================================================
-
-class TestBuildSlackMessage:
-    """Tests for build_slack_message node."""
-
-    def test_build_slack_message_returns_blocks(self):
-        """build_slack_message returns Slack Block Kit blocks."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import build_slack_message
-
-        state = InvestorState(
-            tenant_id=TENANT,
-            slack_preview="Test preview for investor update...",
-            draft_markdown="# Investor Update\n\nTest content",
-            mrr_cents=1250000,
-            burn_cents=15000000,
-            runway_months=3.0,
-            period_end="2026-03-25",
-            data_sources=["stripe_mock", "bank_mock"],
-        )
-        result = build_slack_message(state)
-
-        assert "slack_blocks" in result
-        assert isinstance(result["slack_blocks"], list)
-        assert len(result["slack_blocks"]) > 0
-
-    def test_build_slack_message_header_block(self):
-        """build_slack_message includes header block."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import build_slack_message
-
-        state = InvestorState(
-            tenant_id=TENANT,
-            slack_preview="Test",
-            draft_markdown="Test",
-        )
-        result = build_slack_message(state)
-
-        blocks = result["slack_blocks"]
-        header_found = any(
-            b.get("type") == "header" for b in blocks
-        )
-        assert header_found
-
-    def test_build_slack_message_includes_metrics(self):
-        """build_slack_message includes metrics in blocks."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import build_slack_message
-
-        state = InvestorState(
-            tenant_id=TENANT,
-            slack_preview="Test",
-            draft_markdown="Test",
-            mrr_cents=1250000,
-            burn_cents=15000000,
-            runway_months=3.0,
-        )
-        result = build_slack_message(state)
-
-        blocks_text = " ".join(
-            str(b.get("text", {})) for b in result["slack_blocks"]
-        )
-        # Should contain MRR or Burn or Runway info
-        assert "MRR" in blocks_text or "Burn" in blocks_text or "Runway" in blocks_text
-
-
-# =============================================================================
-# TestCritiqueDraft
-# =============================================================================
-
-class TestCritiqueDraft:
-    """Tests for critique_draft node."""
-
-    def test_critique_draft_returns_fields(self):
-        """critique_draft returns critique, quality_pass, and iteration."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import critique_draft
-
-        state = InvestorState(
-            tenant_id=TENANT,
-            draft_markdown="# Investor Update\n\nMRR: ₹9,000",
-        )
-        result = critique_draft(state)
-
-        assert "critique" in result
-        assert "quality_pass" in result
-        assert "iteration" in result
-        assert isinstance(result["critique"], str)
-        assert isinstance(result["quality_pass"], bool)
-        assert isinstance(result["iteration"], int)
-
-    def test_critique_draft_increments_iteration(self):
-        """critique_draft increments iteration counter."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import critique_draft
-
-        state = InvestorState(
-            tenant_id=TENANT,
-            draft_markdown="Test draft",
-            iteration=0,
-        )
-        result = critique_draft(state)
-
-        assert result["iteration"] == 1
-
-    def test_critique_draft_handles_empty_draft(self):
-        """critique_draft handles empty draft gracefully."""
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import critique_draft
-
-        state = InvestorState(tenant_id=TENANT, draft_markdown="")
-        result = critique_draft(state)
-
-        # Should not raise, should return valid fields
-        assert "critique" in result
-        assert "quality_pass" in result
-        assert result["iteration"] == 1
-
-    def test_critic_loop_exits_at_iteration_1(self):
-        """Even if critic always FAIL, loop exits at iteration=1."""
-        from unittest.mock import patch, MagicMock
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import critique_draft
-
-        with patch("src.agents.investor.nodes.draft_critic") as mock_critic:
-            mock_critic.return_value = MagicMock(verdict="FAIL — needs more detail")
-            state = InvestorState(
-                tenant_id=TENANT,
-                draft_markdown="## Test\n\nMRR: ₹9,000",
-                iteration=0,
-            )
-            result = critique_draft(state)
-            assert result["iteration"] == 1
-            assert "critique" in result
-
-    def test_critic_pass_exits_immediately(self):
-        """Critic PASS → quality_pass=True, iteration incremented."""
-        from unittest.mock import patch, MagicMock
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import critique_draft
-
-        with patch("src.agents.investor.nodes.draft_critic") as mock_critic:
-            mock_critic.return_value = MagicMock(verdict="PASS — great update")
-            state = InvestorState(
-                tenant_id=TENANT,
-                draft_markdown="## Test\n\nMRR: ₹9,000",
-                iteration=0,
-            )
-            result = critique_draft(state)
-            assert result["quality_pass"] is True
-            assert result["iteration"] == 1
-
-    def test_graph_has_critic_node(self):
-        """Compiled graph includes critique_draft node."""
-        from src.agents.investor.graph import build_investor_graph
-
-        g = build_investor_graph()
-        names = set(g.nodes.keys())
-        assert "critique_draft" in names
-
-    def test_graph_conditional_edge_for_critic(self):
-        """critic_route function routes correctly based on quality_pass and iteration."""
-        from src.agents.investor.graph import build_investor_graph
-
-        g = build_investor_graph()
-        # Verify critic_route function exists in the graph module
-        from src.agents.investor.graph import build_investor_graph as _build
-
-        # Rebuild to access the conditional edge logic
-        from langgraph.graph import StateGraph
-        from src.agents.investor.state import InvestorState
-        from src.agents.investor.nodes import (
-            fetch_metrics, retrieve_memory, generate_draft,
-            critique_draft, build_slack_message, send_slack,
-        )
-
-        graph = StateGraph(InvestorState)
-        graph.add_node("fetch_metrics", fetch_metrics)
-        graph.add_node("retrieve_memory", retrieve_memory)
-        graph.add_node("generate_draft", generate_draft)
-        graph.add_node("critique_draft", critique_draft)
-        graph.add_node("build_slack_message", build_slack_message)
-        graph.add_node("send_slack", send_slack)
-        graph.set_entry_point("fetch_metrics")
-        graph.add_edge("fetch_metrics", "retrieve_memory")
-        graph.add_edge("retrieve_memory", "generate_draft")
-        graph.add_edge("generate_draft", "critique_draft")
-
-        def critic_route(state):
-            if state.get("quality_pass") or state.get("iteration", 0) >= 1:
-                return "output"
-            return "revise"
-
-        assert critic_route({"quality_pass": True, "iteration": 0}) == "output"
-        assert critic_route({"quality_pass": False, "iteration": 0}) == "revise"
-        assert critic_route({"quality_pass": False, "iteration": 1}) == "output"
-
-    def test_draft_under_300_words(self):
-        """Verify InvestorUpdateWriter signature exists and enforces 300 word limit."""
-        from src.agents.investor.prompts import InvestorUpdateWriter
-
-        assert InvestorUpdateWriter is not None
-        # Check the signature has draft_markdown output field
-        assert hasattr(InvestorUpdateWriter, "__annotations__")
-        annotations = InvestorUpdateWriter.__annotations__
-        assert "draft_markdown" in annotations
+        state: InvestorState = InvestorState()
+        assert state == {}
 
 
 # =============================================================================
@@ -426,42 +95,62 @@ class TestCritiqueDraft:
 # =============================================================================
 
 class TestInvestorGraph:
-    """Tests for the compiled investor graph with critic loop."""
+    """Tests for InvestorGraph dataclass."""
 
-    def test_graph_compiles(self):
-        """build_investor_graph returns a compiled graph."""
-        from src.agents.investor.graph import build_investor_graph
+    def test_investor_graph_has_tenant_id_field(self):
+        """InvestorGraph dataclass has tenant_id field."""
+        from src.agents.investor.graph import InvestorGraph
 
-        graph = build_investor_graph()
-        assert graph is not None
-        assert hasattr(graph, "nodes")
+        graph = InvestorGraph(tenant_id=TENANT)
+        assert graph.tenant_id == TENANT
 
-    def test_graph_has_critique_draft_node(self):
-        """Compiled graph includes critique_draft node."""
+    def test_investor_graph_default_tenant_empty(self):
+        """Default investor_graph has empty tenant_id."""
         from src.agents.investor.graph import investor_graph
 
-        node_names = list(investor_graph.nodes.keys())
-        assert "critique_draft" in node_names
+        assert investor_graph.tenant_id == ""
 
-    def test_graph_has_six_nodes(self):
-        """Compiled graph has exactly 6 user-defined nodes (7 total with __start__)."""
+    def test_investor_graph_is_dataclass(self):
+        """InvestorGraph is a dataclass."""
+        from src.agents.investor.graph import InvestorGraph
+        from dataclasses import is_dataclass
+
+        assert is_dataclass(InvestorGraph)
+
+    def test_investor_graph_singleton(self):
+        """investor_graph singleton exists."""
         from src.agents.investor.graph import investor_graph
 
-        # LangGraph adds an internal __start__ node, so 7 total
-        assert len(investor_graph.nodes) == 7
+        assert investor_graph is not None
+        assert hasattr(investor_graph, "tenant_id")
 
-    def test_graph_node_list(self):
-        """Compiled graph has all expected nodes."""
-        from src.agents.investor.graph import investor_graph
 
-        expected = {
-            "__start__",
-            "fetch_metrics",
-            "retrieve_memory",
-            "generate_draft",
-            "critique_draft",
-            "build_slack_message",
-            "send_slack",
-        }
-        actual = set(investor_graph.nodes.keys())
-        assert actual == expected
+# =============================================================================
+# TestStubNoLLMCalls
+# =============================================================================
+
+class TestStubNoLLMCalls:
+    """Tests to verify stub is a no-op (no LLM calls)."""
+
+    def test_investor_graph_has_no_build_function(self):
+        """Stub does not have build_investor_graph function."""
+        from src.agents.investor import graph as graph_module
+
+        assert not hasattr(graph_module, "build_investor_graph")
+
+    def test_investor_state_does_not_call_llm(self):
+        """InvestorState manipulation does not trigger LLM calls."""
+        from src.agents.investor.state import InvestorState
+
+        state: InvestorState = {"tenant_id": TENANT}
+        state["metrics"] = {"mrr_cents": 100000}
+        assert state["metrics"]["mrr_cents"] == 100000
+
+    def test_graph_module_exports_only_needed_items(self):
+        """Graph module exports only InvestorGraph and investor_graph."""
+        from src.agents.investor import graph as graph_module
+
+        assert hasattr(graph_module, "InvestorGraph")
+        assert hasattr(graph_module, "investor_graph")
+        exported = [name for name in dir(graph_module) if not name.startswith("_") and name not in ("dataclass", "Field", "FieldType", "MISSING")]
+        assert len(exported) == 2

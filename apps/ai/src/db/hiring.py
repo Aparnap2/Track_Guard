@@ -9,9 +9,11 @@ from typing import Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from src.config.database import get_sarthi_database_url
+
 log = logging.getLogger(__name__)
 
-DATABASE_URL = "postgresql://sarthi:sarthi@localhost:5432/sarthi"
+DATABASE_URL = get_sarthi_database_url()
 
 
 def get_db_connection():

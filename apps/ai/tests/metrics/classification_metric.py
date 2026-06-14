@@ -35,7 +35,8 @@ class ExactClassificationMetric(BaseMetric):
         return self.score
 
     def is_successful(self) -> bool:
-        return self.success if not self.error else False
+        # Explicitly return bool to handle None case
+        return bool(self.success) if self.success is not None else False
 
 
 class SpecQualityMetric(BaseMetric):

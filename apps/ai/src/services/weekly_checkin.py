@@ -4,7 +4,7 @@ Uses GraphMemoryAgent to get momentum score.
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from src.config.llm import get_llm_client
+from src.config.llm import get_llm_client, get_chat_model
 
 MESSAGES = {
     "after_win": {
@@ -32,6 +32,7 @@ class WeeklyCheckin:
         self._memory = memory_agent
         self._tone = tone_filter
         self._client = get_llm_client()
+        self._model = get_chat_model()
 
     def get_message(self, founder_id: str, language: str = "en") -> CheckinMessage:
         patterns = self._memory.detect_patterns(founder_id)
@@ -74,13 +75,22 @@ Rules:
 
 Return JSON: {{"briefing": str, "one_action": str}}"""
 
-        response = self._client.chat.completions.create(
-            model="openai/gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            response_format={"type": "json_object"},
+        response = self._client.post(
+            "/chat/completions",
+            json={
+                "model": self._model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            },
         )
-        
+        response.raise_for_status()
+        data = response.json()
+
         import json
-        result = json.loads(response.choices[0].message.content)
-        return result.get("briefing", "")
+        raw = data["choices"][0]["message"]["content"].strip()
+        try:
+            parsed = json.loads(raw)
+            result = parsed.get("briefing", parsed.get("content", raw))
+        except json.JSONDecodeError:
+            result = raw
+        return result

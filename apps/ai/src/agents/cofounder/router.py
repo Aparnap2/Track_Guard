@@ -10,6 +10,16 @@ from typing import Optional
 from src.registry.health import HealthPoller
 from src.session.mission_state import get_mission_state, MissionState
 from src.session.relevance_gate import evaluate_relevance, get_triggered_agents
+from src.services.trust_battery import (
+    AgentTrustProfile,
+    DEGRADED_THRESHOLD,
+    get_profile,
+    is_agent_degraded,
+    update_trust_score,
+)
+
+DEGRADED_PRIORITY = 999
+MEDIUM_TRUST_THRESHOLD = 0.6
 
 # Capability to domain mapping
 CAPABILITY_DOMAIN_MAP = {
@@ -31,6 +41,9 @@ class RouteDecision:
     reason: str
     should_escalate: bool
     triggered_agents: list[str] = None
+    trust_score: float = 0.0
+    routing_priority: int = 999
+    trust_reason: str = ""
 
 
 class Router:
@@ -70,7 +83,6 @@ class Router:
         if self.health_poller is None:
             return True, "no health poller configured"
 
-        # Find matching capability
         for cap_id, cap_domain in CAPABILITY_DOMAIN_MAP.items():
             if cap_domain == domain:
                 health = self.health_poller.get_health(cap_id)
@@ -81,20 +93,75 @@ class Router:
                 return True, f"{cap_id} is {health}"
         return True, "no capability mapping found"
 
-    def _fallback_route(self, domain: str) -> RouteDecision:
-        """Route to fallback when capability is unhealthy.
-
-        Args:
-            domain: Original target domain
+    def _get_trust_info(self, tenant_id: str, agent_name: str) -> tuple[float, str, str]:
+        """Get trust score and reason for agent.
 
         Returns:
-            RouteDecision with fallback destination
+            Tuple of (trust_score, reason, trust_level)
         """
+        profile = get_profile(tenant_id, agent_name)
+        score = profile.trust_score
+        priority = profile.route_priority
+
+        if score < DEGRADED_THRESHOLD:
+            return score, f"Agent {agent_name} is degraded (trust={score:.2f}, priority={priority})", "degraded"
+        if score < MEDIUM_TRUST_THRESHOLD:
+            return score, f"Agent {agent_name} has medium trust (trust={score:.2f})", "medium"
+        return score, f"Agent {agent_name} has high trust (trust={score:.2f})", "high"
+
+    def _route_degraded(self, domain: str, trust_score: float, reason: str) -> RouteDecision:
+        """Route in degraded mode - use simpler checks, reduce complexity."""
+        return RouteDecision(
+            destination=domain,
+            reason=f"Degraded mode: {reason}",
+            should_escalate=False,
+            triggered_agents=[],
+            trust_score=trust_score,
+            routing_priority=DEGRADED_PRIORITY,
+            trust_reason="degraded_mode_active",
+        )
+
+    def _route_with_caveat(self, domain: str, trust_score: float, reason: str) -> RouteDecision:
+        """Route with caution - medium trust requires extra validation."""
+        return RouteDecision(
+            destination=domain,
+            reason=f"Caution: {reason}",
+            should_escalate=False,
+            triggered_agents=[],
+            trust_score=trust_score,
+            routing_priority=3,
+            trust_reason="medium_trust_caveat",
+        )
+
+    def _route_full(
+        self,
+        domain: str,
+        base_reason: str,
+        triggered_agents: list[str],
+        trust_score: float,
+        priority: int,
+    ) -> RouteDecision:
+        """Full pipeline routing - high trust agent."""
+        return RouteDecision(
+            destination=domain,
+            reason=base_reason,
+            should_escalate=False,
+            triggered_agents=triggered_agents,
+            trust_score=trust_score,
+            routing_priority=priority,
+            trust_reason="full_trust_pipeline",
+        )
+
+    def _fallback_route(self, domain: str) -> RouteDecision:
+        """Route to fallback when capability is unhealthy."""
         return RouteDecision(
             destination="none",
             reason=f"Capability for {domain} is unhealthy - using fallback",
             should_escalate=False,
             triggered_agents=[],
+            trust_score=0.0,
+            routing_priority=DEGRADED_PRIORITY,
+            trust_reason="capability_unhealthy",
         )
 
     async def route(
@@ -111,10 +178,8 @@ class Router:
         Returns:
             RouteDecision with destination and reason
         """
-        # Step 1: Get MissionState for context
         mission_state = await get_mission_state(tenant_id)
 
-        # Step 2: Run relevance gate (pure Python, zero LLM)
         active_alerts = mission_state.active_alerts.split(",") if mission_state.active_alerts else []
         active_alerts = [a.strip() for a in active_alerts if a.strip()]
 
@@ -126,12 +191,13 @@ class Router:
                 reason=relevance.reason,
                 should_escalate=False,
                 triggered_agents=[],
+                trust_score=0.75,
+                routing_priority=1,
+                trust_reason="no_relevance",
             )
 
-        # Step 3: Get agent names from domains
         triggered_agents = get_triggered_agents(message, active_alerts)
 
-        # Step 4: Check for escalation per PRD Option C
         should_escalate = self._should_escalate(message, mission_state)
 
         if should_escalate:
@@ -140,23 +206,44 @@ class Router:
                 reason="Critical signal or investor update - requires founder approval",
                 should_escalate=True,
                 triggered_agents=triggered_agents,
+                trust_score=0.75,
+                routing_priority=1,
+                trust_reason="critical_escalation",
             )
 
-        # Step 5: Primary domain routing (deterministic)
-        # Map domain → agent
         target_domain = relevance.triggered_domains[0] if relevance.triggered_domains else "none"
 
-        # Step 6: Health check before routing
         if target_domain != "none":
             is_healthy, health_reason = self._check_capability_health(target_domain)
             if not is_healthy:
                 return self._fallback_route(target_domain)
+
+            agent_name = triggered_agents[0] if triggered_agents else target_domain
+            trust_score, trust_reason_str, trust_level = self._get_trust_info(tenant_id, agent_name)
+
+            if trust_level == "degraded":
+                return self._route_degraded(target_domain, trust_score, trust_reason_str)
+
+            if trust_level == "medium":
+                return self._route_with_caveat(target_domain, trust_score, trust_reason_str)
+
+            profile = get_profile(tenant_id, agent_name)
+            return self._route_full(
+                target_domain,
+                relevance.reason,
+                triggered_agents,
+                trust_score,
+                profile.route_priority,
+            )
 
         return RouteDecision(
             destination=target_domain,
             reason=relevance.reason,
             should_escalate=False,
             triggered_agents=triggered_agents,
+            trust_score=0.75,
+            routing_priority=1,
+            trust_reason="default_routing",
         )
 
     def _should_escalate(

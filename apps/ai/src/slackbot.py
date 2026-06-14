@@ -226,6 +226,85 @@ async def handle_log_decision(ack, body, client):
         log.error(f"Error handling log_decision button: {e}")
 
 
+@app.event("message")
+async def handle_channel_message(event, say):
+    """Handle #sarthi channel messages.
+
+    Per PRD V3.0 Step 5:
+    message received -> write_session_message -> relevance gate -> agent routing -> memory
+    """
+    if event.get("bot_id") or event.get("subtype") == "bot_message":
+        return
+
+    channel_id = event.get("channel", "")
+    sarthi_channel = os.environ.get("SARTHI_CHANNEL_ID", "")
+    if sarthi_channel and channel_id != sarthi_channel:
+        return
+
+    text = event.get("text", "").strip()
+    if not text:
+        return
+
+    team_id = event.get("team", "") or event.get("team_id", "")
+    if not team_id:
+        log.warning("No team_id in message event")
+        return
+
+    tenant_id = await get_tenant_from_slack_team(team_id)
+    user = event.get("user", "unknown")
+
+    try:
+        from src.session.context import write_session_message
+        from src.session.relevance_gate import evaluate_relevance
+
+        await write_session_message(tenant_id, "founder", text)
+
+        decision = evaluate_relevance(text, tenant_id=tenant_id)
+
+        if decision.should_respond:
+            from src.agents.cofounder.router import route_message
+            from src.agents.cofounder.correlation import CorrelationAgent
+            from src.session.mission_state import get_mission_state, update_mission_state
+            from src.session.memory_integration import SessionMemoryWriter
+
+            log.info(
+                "Triggered agents for %s: %s",
+                tenant_id, decision.triggered_domains,
+            )
+
+            routing = await route_message(text, tenant_id)
+
+            mission = await get_mission_state(tenant_id)
+            mission.founder_focus = text[:200]
+
+            cofounder = CorrelationAgent()
+            signals = cofounder.detect(mission)
+
+            await update_mission_state(mission)
+
+            writer = SessionMemoryWriter(tenant_id)
+            writer.write_message_as_episode(
+                content=text,
+                event_type="intent_detected",
+                metadata={
+                    "user": user,
+                    "channel": channel_id,
+                    "destination": routing.destination,
+                    "signals": [s.name for s in signals],
+                },
+            )
+
+            log.info(
+                "Message routed: tenant=%s destination=%s signals=%d",
+                tenant_id, routing.destination, len(signals),
+            )
+        else:
+            log.debug("No agents triggered for message: %s", text[:50])
+
+    except Exception as e:
+        log.error("Error processing #sarthi message: %s", e)
+
+
 def _build_decision_modal():
     """Build the decision logging modal view."""
     return {

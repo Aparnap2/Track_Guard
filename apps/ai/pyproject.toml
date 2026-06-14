@@ -54,6 +54,7 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.52b0",
     "opentelemetry-instrumentation-qdrant>=0.52b0",
     "ollama>=0.6.2",
+    "google-genai>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +72,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = ["-v"]
+addopts = ["-v", "--timeout=30"]
 
 [tool.pytest_env]
 # Enable running tests without Temporal connection

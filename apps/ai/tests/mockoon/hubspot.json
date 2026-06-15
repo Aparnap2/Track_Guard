@@ -1,0 +1,170 @@
+{
+  "uuid": "21703561-b157-4c44-b89e-bfe4be3481b9",
+  "lastMigration": 29,
+  "name": "HubSpot CRM Mock",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 8080,
+  "hostname": "",
+  "routes": [
+    {
+      "uuid": "2aaff11b-76e3-473f-9610-921c05a52757",
+      "documentation": "health",
+      "method": "get",
+      "endpoint": "health",
+      "responses": [
+        {
+          "uuid": "da1c239d-6127-4bfc-b823-cd70e4ed4de7",
+          "body": "{\"status\": \"ok\"}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "bff901c6-9610-4bbe-a66e-d8ad4116e669",
+      "documentation": "crm/v3/objects/deals",
+      "method": "get",
+      "endpoint": "crm/v3/objects/deals",
+      "responses": [
+        {
+          "uuid": "336ed324-2d26-427b-9cbd-90d855208305",
+          "body": "{\"results\": [{\"id\": \"deal-001\", \"properties\": {\"dealname\": \"Acme Corp - Q2 Renewal\", \"amount\": \"500000\", \"dealstage\": \"closedwon\", \"closedate\": \"2026-05-28T00:00:00Z\", \"createdate\": \"2026-01-15T00:00:00Z\"}}, {\"id\": \"deal-002\", \"properties\": {\"dealname\": \"Globex Inc - Platform Subscription\", \"amount\": \"350000\", \"dealstage\": \"negotiation\", \"closedate\": \"\", \"createdate\": \"2026-03-01T00:00:00Z\"}}, {\"id\": \"deal-003\", \"properties\": {\"dealname\": \"Initech - Enterprise Pilot\", \"amount\": \"400000\", \"dealstage\": \"discovery\", \"closedate\": \"\", \"createdate\": \"2026-05-10T00:00:00Z\"}}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "525b1e16-ed90-4a7f-af9f-2e7406a0ee31",
+      "documentation": "crm/v3/objects/companies",
+      "method": "get",
+      "endpoint": "crm/v3/objects/companies",
+      "responses": [
+        {
+          "uuid": "9bfe19fb-484d-402c-a5fe-1a6d01df620f",
+          "body": "{\"results\": [{\"id\": \"company-001\", \"properties\": {\"name\": \"Acme Corp\", \"domain\": \"acme.com\", \"numberofemployees\": 250, \"hs_lead_status\": \"CUSTOMER\"}}, {\"id\": \"company-002\", \"properties\": {\"name\": \"Globex Inc\", \"domain\": \"globex.com\", \"numberofemployees\": 500, \"hs_lead_status\": \"CUSTOMER\"}}, {\"id\": \"company-003\", \"properties\": {\"name\": \"Initech\", \"domain\": \"initech.com\", \"numberofemployees\": 75, \"hs_lead_status\": \"LEAD\"}}, {\"id\": \"company-004\", \"properties\": {\"name\": \"Hooli\", \"domain\": \"hooli.com\", \"numberofemployees\": 1000, \"hs_lead_status\": \"CUSTOMER\"}}, {\"id\": \"company-005\", \"properties\": {\"name\": \"Cyberdyne Systems\", \"domain\": \"cyberdyne.com\", \"numberofemployees\": 50, \"hs_lead_status\": \"LEAD\"}}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    }
+  ],
+  "folders": [],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uid": "2aaff11b-76e3-473f-9610-921c05a52757"
+    },
+    {
+      "type": "route",
+      "uid": "bff901c6-9610-4bbe-a66e-d8ad4116e669"
+    },
+    {
+      "type": "route",
+      "uid": "525b1e16-ed90-4a7f-af9f-2e7406a0ee31"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "callbacks": [],
+  "data": []
+}

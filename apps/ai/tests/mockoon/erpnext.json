@@ -1,0 +1,459 @@
+{
+  "uuid": "de40bb19-2bee-4b04-912b-3b5c088a5c9d",
+  "lastMigration": 29,
+  "name": "ERPNext Mock",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 8080,
+  "hostname": "",
+  "routes": [
+    {
+      "uuid": "8dfa5d7b-04aa-4064-b58b-fd114e8d2b41",
+      "documentation": "health",
+      "method": "get",
+      "endpoint": "health",
+      "responses": [
+        {
+          "uuid": "ab77eb4b-a575-4430-a4ed-d27ce442e4d5",
+          "body": "{\"status\": \"ok\"}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Health",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "b124981c-1241-407c-acdb-bec8097a5c0c",
+      "documentation": "api/method/frappe.client.get_list",
+      "method": "get",
+      "endpoint": "api/method/frappe.client.get_list",
+      "responses": [
+        {
+          "uuid": "8a00bb38-3b03-4b98-b6ec-33a065bb2da4",
+          "body": "{\"message\": [{\"name\": \"ISS-2026-00001\", \"subject\": \"Login broken\", \"status\": \"Open\", \"priority\": \"High\", \"issue_type\": \"Bug\"}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Issues",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Issue",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "0a82a0d6-001d-4d4f-8de1-0d1659be5197",
+          "body": "{\"message\": [{\"name\": \"PROJ-0001\", \"project_name\": \"Q2 Platform\", \"status\": \"Open\", \"percent_complete\": 65.0}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Projects",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Project",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "7a1e06ef-cbb2-4018-a192-3cf5d08578b1",
+          "body": "{\"message\": [{\"name\": \"EMP-00001\", \"employee_name\": \"Alice\", \"status\": \"Active\", \"department\": \"Engineering\", \"date_of_joining\": \"2025-01-15\"}, {\"name\": \"EMP-00002\", \"employee_name\": \"Bob\", \"status\": \"Active\", \"department\": \"Engineering\", \"date_of_joining\": \"2025-03-01\"}, {\"name\": \"EMP-00003\", \"employee_name\": \"Carol\", \"status\": \"Active\", \"department\": \"Sales\", \"date_of_joining\": \"2026-05-01\"}, {\"name\": \"EMP-00004\", \"employee_name\": \"David\", \"status\": \"Active\", \"department\": \"Marketing\", \"date_of_joining\": \"2024-11-20\"}, {\"name\": \"EMP-00005\", \"employee_name\": \"Eve\", \"status\": \"Active\", \"department\": \"Engineering\", \"date_of_joining\": \"2026-06-01\"}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Employees",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Employee",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "95bb2158-9a40-4a1e-9178-cf81ab42a36e",
+          "body": "{\"message\": [{\"name\": \"SINV-2026-00001\", \"customer\": \"Acme Corp\", \"total\": 150000.0, \"outstanding_amount\": 50000.0, \"status\": \"Partly Paid\", \"due_date\": \"2026-05-31\"}, {\"name\": \"SINV-2026-00002\", \"customer\": \"Globex Inc\", \"total\": 75000.0, \"outstanding_amount\": 75000.0, \"status\": \"Unpaid\", \"due_date\": \"2026-06-15\"}, {\"name\": \"SINV-2026-00003\", \"customer\": \"Acme Corp\", \"total\": 25000.0, \"outstanding_amount\": 25000.0, \"status\": \"Overdue\", \"due_date\": \"2026-04-30\"}]}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Sales Invoices",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Sales Invoice",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "adc0f46a-5105-44ca-a075-6b412557a4f9",
+      "documentation": "api/method/frappe.client.get_count",
+      "method": "get",
+      "endpoint": "api/method/frappe.client.get_count",
+      "responses": [
+        {
+          "uuid": "b57fea4c-b7f3-4e40-8c3f-258f0f06f796",
+          "body": "{\"message\": 3}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Issues",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Issue",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "98a98edb-daa0-42eb-873b-55b812210fd1",
+          "body": "{\"message\": 2}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Projects",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Project",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "92d44979-50b4-461b-a520-60f2760ae4bd",
+          "body": "{\"message\": 5}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Tasks",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Task",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "eee84337-ace4-4a7d-8d63-dcab0ab4ea43",
+          "body": "{\"message\": 5}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Employees",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Employee",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        },
+        {
+          "uuid": "ead2d997-8ae1-49e8-8d82-3ae60770ab26",
+          "body": "{\"message\": 5}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Sales Invoices",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Sales Invoice",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "3722c034-616f-44dc-a4de-8c6a3dd7540a",
+      "documentation": "api/method/frappe.client.get_value",
+      "method": "get",
+      "endpoint": "api/method/frappe.client.get_value",
+      "responses": [
+        {
+          "uuid": "f9a7aa5a-2bd2-4e33-b58c-815948194952",
+          "body": "{\"message\": {\"priority\": \"High\"}}",
+          "latency": 100,
+          "statusCode": 200,
+          "label": "Issue get_value",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "filePath": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "query",
+              "modifier": "doctype",
+              "value": "Issue",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "databucketID": "",
+          "bodyType": "INLINE",
+          "crudKey": "id",
+          "callbacks": null
+        }
+      ],
+      "enabled": true,
+      "responseMode": null,
+      "type": "http",
+      "streamingMode": null,
+      "streamingInterval": 0
+    }
+  ],
+  "folders": [],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uid": "8dfa5d7b-04aa-4064-b58b-fd114e8d2b41"
+    },
+    {
+      "type": "route",
+      "uid": "b124981c-1241-407c-acdb-bec8097a5c0c"
+    },
+    {
+      "type": "route",
+      "uid": "adc0f46a-5105-44ca-a075-6b412557a4f9"
+    },
+    {
+      "type": "route",
+      "uid": "3722c034-616f-44dc-a4de-8c6a3dd7540a"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "callbacks": [],
+  "data": []
+}

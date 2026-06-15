@@ -67,15 +67,23 @@ async def run_startup_guardian(tenant_id: str) -> dict[str, Any]:
     connectors_ok: dict[str, bool] = {}
     snapshots: dict[str, dict[str, Any]] = {}
 
-    for name, func in _CONNECTORS:
+    async def _run_connector(name: str, func: Any) -> tuple[str, Any]:
         try:
             snap = await asyncio.to_thread(func, tenant_id)
-            snapshots[name] = snap
-            connectors_ok[name] = True
-            log.info("Connector %s succeeded for tenant %s", name, tenant_id)
+            return name, snap, True
         except Exception as exc:
             log.error("Connector %s failed for tenant %s: %s", name, tenant_id, exc)
-            connectors_ok[name] = False
+            return name, None, False
+
+    results = await asyncio.gather(*(
+        _run_connector(name, func) for name, func in _CONNECTORS
+    ))
+
+    for name, snap, ok in results:
+        connectors_ok[name] = ok
+        if ok and snap is not None:
+            snapshots[name] = snap
+            log.info("Connector %s succeeded for tenant %s", name, tenant_id)
 
     if "erpnext" in snapshots:
         raw = snapshots["erpnext"]

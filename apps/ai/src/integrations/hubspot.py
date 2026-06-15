@@ -66,7 +66,7 @@ def get_hubspot_snapshot(tenant_id: str) -> Dict[str, Any]:
         total_deals_cents = 0
         won_deals_30d_cents = 0
         pipeline_cents = 0
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
         for deal in all_deals:
             props = getattr(deal, "properties", {}) or {}

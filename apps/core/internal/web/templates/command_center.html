@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-surface: #0f1117;
+            --bg-card: #1a1d27;
+            --bg-card-hover: #222637;
+            --border: #2a2e3a;
+            --text: #e8eaed;
+            --text-secondary: #9aa0a6;
+            --text-muted: #6b7280;
+            --accent-blue: #7dd3fc;
+            --accent-green: #34d399;
+            --accent-yellow: #fbbf24;
+            --accent-red: #f87171;
+            --accent-purple: #a78bfa;
+        }
+        body {
+            background: var(--bg-surface);
+            color: var(--text);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: rgba(255,255,255,0.1);
+        }
+        .glow-accent {
+            box-shadow: 0 0 20px rgba(125,211,252,0.06);
+        }
+        .metric-value {
+            font-variant-numeric: tabular-nums;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="max-w-[1600px] mx-auto px-4 py-4">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-lg" style="background:rgba(125,211,252,.12);color:var(--accent-blue)">S</div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Sarthi Command Center</h1>
+                    <p class="text-xs" style="color:var(--text-muted)">Mission control · real-time operational dashboard</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs" style="color:var(--text-muted)">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>All systems nominal</span>
+                <span id="live-timestamp"></span>
+            </div>
+        </div>
+
+        <!-- Row 1: Status Bar -->
+        <div class="mb-4" id="status-bar-container"
+             hx-get="/api/command/status"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+            <div class="card p-4 flex items-center gap-6 text-sm">
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Mission health</span><span class="font-semibold">—</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Risk level</span><span class="font-semibold">—</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Blindspots</span><span class="font-semibold">—</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Approvals</span><span class="font-semibold">—</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Last sync</span><span class="font-mono text-xs">—</span></div>
+            </div>
+        </div>
+
+        <!-- Row 2: KPIs -->
+        <div class="mb-4" id="kpis-container"
+             hx-get="/api/command/kpis"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+            <div class="grid grid-cols-4 gap-4">
+                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
+                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
+                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
+                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
+            </div>
+        </div>
+
+        <!-- Row 3: Mission State + Watchlist -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div id="mission-state-container"
+                 hx-get="/api/command/mission-state"
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-semibold">MissionState board</h3>
+                        <span class="text-xs" style="color:var(--text-muted)">AUTO-COMPILED</span>
+                    </div>
+                    <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading signals...</div>
+                </div>
+            </div>
+            <div id="watchlist-container"
+                 hx-get="/api/command/watchlist"
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                <div class="card p-4">
+                    <h3 class="font-semibold mb-3">Watchlist</h3>
+                    <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading watchlist...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: Agent Fleet + Timeline -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="card p-4" id="agent-fleet-container"
+                 hx-get="/api/command/agent-fleet"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading agents...</div>
+            </div>
+            <div class="card p-4" id="timeline-container"
+                 hx-get="/api/command/timeline"
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                <h3 class="font-semibold mb-3">Event Timeline</h3>
+                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading timeline...</div>
+            </div>
+        </div>
+
+        <!-- Row 5: Approvals + Metrics -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="card p-4" id="approvals-container"
+                 hx-get="/api/command/approvals"
+                 hx-trigger="load, every 10s"
+                 hx-swap="innerHTML">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold">Pending Approvals</h3>
+                    <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(251,191,36,.12);color:var(--accent-yellow)">Waiting</span>
+                </div>
+                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading approvals...</div>
+            </div>
+            <div class="card p-4" id="metrics-container"
+                 hx-get="/api/command/metrics"
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                <h3 class="font-semibold mb-3">System Metrics</h3>
+                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading metrics...</div>
+            </div>
+        </div>
+
+        <!-- Row 6: Chart + Chat -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="card p-4">
+                <h3 class="font-semibold mb-3">Trend</h3>
+                <div id="chart-container"
+                     hx-get="/api/command/chart-data"
+                     hx-trigger="load, every 30s"
+                     hx-swap="innerHTML">
+                    <canvas id="command-chart" height="200"></canvas>
+                </div>
+            </div>
+            <div id="chat-container"
+                 hx-get="/api/command/chat"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="card p-4 h-80 flex items-center justify-center">
+                    <div style="color:var(--text-muted)" class="text-sm">Loading chat...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update live timestamp
+        function updateTimestamp() {
+            const el = document.getElementById('live-timestamp');
+            if (el) el.textContent = new Date().toLocaleTimeString();
+        }
+        setInterval(updateTimestamp, 1000);
+        updateTimestamp();
+
+        // Chart.js rendering when data loads
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'chart-container') {
+                const chartData = evt.detail.target.querySelector('script[data-chart]');
+                if (chartData) renderChart(JSON.parse(chartData.textContent));
+            }
+        });
+
+        // Load chart on page load via fetch
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/command/chart-data')
+                .then(r => r.json())
+                .then(data => {
+                    const canvas = document.getElementById('command-chart');
+                    if (!canvas || typeof Chart === 'undefined') return;
+                    renderChartOnCanvas(canvas, data);
+                })
+                .catch(() => {});
+        });
+
+        function renderChartOnCanvas(canvas, data) {
+            if (!canvas || !data) return;
+            const ctx = canvas.getContext('2d');
+            if (window._commandChart) window._commandChart.destroy();
+            // Simple inline chart render using colored bars as fallback
+            if (data.labels && data.datasets) {
+                canvas.parentElement.innerHTML = '<div class="text-xs" style="color:var(--text-muted)">Chart loaded. Install Chart.js for interactive view.</div>' +
+                    '<div class="mt-2 text-xs" style="color:var(--text-secondary)">' +
+                    data.labels.join(' · ') +
+                    '</div>';
+            }
+        }
+
+        function renderChart(data) {
+            const canvas = document.getElementById('command-chart');
+            if (canvas) renderChartOnCanvas(canvas, data);
+        }
+    </script>
+</body>
+</html>

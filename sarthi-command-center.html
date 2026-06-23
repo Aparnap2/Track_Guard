@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sarthi Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root,[data-theme="light"] {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+      --space-1: .25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-5:1.25rem; --space-6:1.5rem; --space-8:2rem; --space-10:2.5rem; --space-12:3rem;
+      --radius-sm:.375rem; --radius-md:.5rem; --radius-lg:.75rem; --radius-xl:1rem; --radius-full:9999px;
+      --bg:#081019; --surface:#0f1722; --surface2:#131d2a; --surface3:#172434; --border:rgba(196,214,255,.12);
+      --text:#e6edf9; --muted:#9fb0c7; --faint:#6e819b; --primary:#7dd3fc; --primary2:#34d399; --warning:#f59e0b; --danger:#f43f5e; --purple:#a78bfa;
+      --shadow:0 20px 50px rgba(0,0,0,.35);
+      --font-body:'Inter',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{font-family:var(--font-body);background:radial-gradient(circle at top left, rgba(125,211,252,.08), transparent 30%), radial-gradient(circle at top right, rgba(167,139,250,.08), transparent 28%), linear-gradient(180deg,#071018 0%,#09131d 100%);color:var(--text);font-size:var(--text-base);line-height:1.5}
+    button,input,textarea{font:inherit;color:inherit}
+    .app{display:grid;grid-template-columns:280px 1fr 380px;min-height:100vh}
+    .sidebar{border-right:1px solid var(--border);background:rgba(8,16,25,.82);backdrop-filter:blur(18px);padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-6)}
+    .main{padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-6)}
+    .right{border-left:1px solid var(--border);background:rgba(8,16,25,.72);backdrop-filter:blur(18px);padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-5)}
+    .logo{display:flex;align-items:center;gap:.9rem}
+    .logo-mark{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg, rgba(125,211,252,.25), rgba(52,211,153,.18));border:1px solid rgba(125,211,252,.28);display:grid;place-items:center;box-shadow:var(--shadow)}
+    .logo svg{width:24px;height:24px}
+    .logo h1{font-size:1rem;font-weight:700;letter-spacing:.02em}
+    .logo p{font-size:.78rem;color:var(--muted)}
+    .nav-group{display:flex;flex-direction:column;gap:.5rem}
+    .nav-label{font-size:.72rem;color:var(--faint);text-transform:uppercase;letter-spacing:.12em;margin-bottom:.45rem}
+    .nav-item{display:flex;align-items:center;justify-content:space-between;padding:.82rem .95rem;border:1px solid transparent;border-radius:14px;color:var(--muted);background:transparent}
+    .nav-item.active,.nav-item:hover{background:rgba(125,211,252,.06);color:var(--text);border-color:rgba(125,211,252,.16)}
+    .pill{padding:.25rem .55rem;border-radius:999px;font-size:.74rem;background:rgba(52,211,153,.12);color:#a7f3d0;font-family:var(--font-mono)}
+    .card{background:linear-gradient(180deg, rgba(19,29,42,.94), rgba(14,22,33,.94));border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow)}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+    .headline h2{font-size:clamp(1.8rem,1.3rem + 1vw,2.2rem);font-weight:800;letter-spacing:-.03em}
+    .headline p{margin-top:.45rem;color:var(--muted);max-width:72ch}
+    .top-actions{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap}
+    .btn{padding:.85rem 1rem;border-radius:14px;border:1px solid rgba(125,211,252,.18);background:rgba(125,211,252,.06)}
+    .btn.primary{background:linear-gradient(135deg, rgba(125,211,252,.18), rgba(52,211,153,.14));color:var(--text)}
+    .status-line{display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);font-size:.9rem}
+    .status-line span strong{color:var(--text);font-family:var(--font-mono);font-weight:600}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+    .kpi{padding:1rem 1rem 1.1rem}
+    .kpi .label{font-size:.78rem;color:var(--faint);text-transform:uppercase;letter-spacing:.12em}
+    .kpi .value{font-size:1.9rem;font-weight:800;letter-spacing:-.04em;margin-top:.5rem}
+    .kpi .delta{margin-top:.45rem;font-size:.88rem;color:var(--muted)}
+    .delta.up{color:#86efac}.delta.warn{color:#fcd34d}.delta.down{color:#fda4af}
+    .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:1rem}
+    .panel{padding:1rem}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .panel-head h3{font-size:1rem;font-weight:700}.panel-head p{font-size:.82rem;color:var(--muted)}
+    .signals{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+    .signal{padding:.85rem;border-radius:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05)}
+    .signal small{color:var(--faint);display:block;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.1em}
+    .signal strong{font-size:1.1rem}
+    .watchlist{display:flex;flex-direction:column;gap:.7rem}
+    .watch{padding:.9rem;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);display:flex;justify-content:space-between;gap:1rem}
+    .watch h4{font-size:.95rem}.watch p{font-size:.82rem;color:var(--muted);margin-top:.25rem}
+    .sev{font-size:.72rem;padding:.25rem .55rem;border-radius:999px;height:max-content;font-family:var(--font-mono)}
+    .sev.high{background:rgba(244,63,94,.12);color:#fda4af}.sev.med{background:rgba(245,158,11,.12);color:#fcd34d}.sev.low{background:rgba(125,211,252,.1);color:#bae6fd}
+    .timeline{display:flex;flex-direction:column;gap:.7rem}
+    .event{display:grid;grid-template-columns:88px 1fr;gap:.8rem;font-size:.88rem}
+    .event time{color:var(--faint);font-family:var(--font-mono)}
+    .event div{color:var(--muted)}
+    .event strong{display:block;color:var(--text);margin-bottom:.18rem}
+    .agents{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
+    .agent{padding:.9rem;border-radius:18px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}
+    .agent-top{display:flex;align-items:center;gap:.7rem;margin-bottom:.65rem}
+    .avatar{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;font-size:.82rem;font-weight:700}
+    .a1{background:rgba(125,211,252,.15);color:#bae6fd}.a2{background:rgba(52,211,153,.15);color:#a7f3d0}.a3{background:rgba(167,139,250,.14);color:#ddd6fe}.a4{background:rgba(245,158,11,.15);color:#fcd34d}
+    .agent h4{font-size:.92rem}.agent p{font-size:.8rem;color:var(--muted)}
+    .agent ul{margin-top:.5rem;display:flex;flex-direction:column;gap:.3rem;list-style:none;font-size:.8rem;color:var(--muted)}
+    .chat-shell{display:flex;flex-direction:column;height:100%}
+    .chat-header{display:flex;justify-content:space-between;align-items:center}
+    .chat-header h3{font-size:1rem}.chat-header p{font-size:.8rem;color:var(--muted);margin-top:.2rem}
+    .segment{display:flex;background:rgba(255,255,255,.03);padding:.25rem;border-radius:14px;border:1px solid rgba(255,255,255,.06);gap:.25rem}
+    .segment button{padding:.55rem .75rem;border-radius:10px;color:var(--muted)}
+    .segment button.active{background:rgba(125,211,252,.12);color:var(--text)}
+    .chat-stream{margin-top:1rem;display:flex;flex-direction:column;gap:.9rem;overflow:auto;padding-right:.25rem;min-height:320px;max-height:56vh}
+    .msg{padding:.9rem;border-radius:18px;border:1px solid rgba(255,255,255,.05);background:rgba(255,255,255,.025)}
+    .msg.you{background:linear-gradient(135deg, rgba(125,211,252,.09), rgba(167,139,250,.06));border-color:rgba(125,211,252,.14)}
+    .msg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem;gap:.8rem}
+    .msg-author{display:flex;align-items:center;gap:.55rem;font-size:.88rem;font-weight:600}
+    .msg-author .mini{width:26px;height:26px;border-radius:10px;display:grid;place-items:center;font-size:.72rem}
+    .msg time{font-size:.72rem;color:var(--faint);font-family:var(--font-mono)}
+    .msg p{font-size:.9rem;color:var(--muted)}
+    .composer{margin-top:auto;padding-top:1rem;display:flex;flex-direction:column;gap:.75rem}
+    .mention-bar{display:flex;gap:.45rem;flex-wrap:wrap}
+    .mention{padding:.34rem .62rem;border-radius:999px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);font-size:.78rem;color:var(--muted);font-family:var(--font-mono)}
+    .mention.active{background:rgba(125,211,252,.12);color:var(--text);border-color:rgba(125,211,252,.2)}
+    .compose-box{border:1px solid rgba(125,211,252,.14);border-radius:18px;background:rgba(255,255,255,.03);padding:.75rem}
+    textarea{width:100%;min-height:92px;resize:none;background:transparent;border:none;outline:none;color:var(--text)}
+    .compose-actions{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;gap:.8rem;flex-wrap:wrap}
+    .hint{font-size:.78rem;color:var(--faint)}
+    .right-card{padding:1rem}
+    .metric-list,.queue{display:flex;flex-direction:column;gap:.7rem}
+    .metric-row,.queue-item{display:flex;justify-content:space-between;gap:1rem;padding:.78rem .85rem;border-radius:14px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}
+    .metric-row small,.queue-item small{display:block;color:var(--faint);margin-bottom:.2rem}
+    .metric-row strong,.queue-item strong{font-size:.92rem}
+    .queue-item p{font-size:.8rem;color:var(--muted);max-width:28ch}
+    .approval{display:flex;gap:.45rem;margin-top:.45rem}
+    .approval button{padding:.38rem .58rem;border-radius:10px;font-size:.76rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03)}
+    .approval .ok{background:rgba(52,211,153,.1);color:#a7f3d0}.approval .hold{background:rgba(245,158,11,.1);color:#fcd34d}
+    canvas{width:100% !important;height:280px !important}
+    .footer-note{margin-top:auto;color:var(--faint);font-size:.76rem;line-height:1.6}
+    @media (max-width: 1200px){.app{grid-template-columns:230px 1fr}.right{grid-column:1/-1;border-left:none;border-top:1px solid var(--border)}.kpis{grid-template-columns:repeat(2,1fr)}.agents{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width: 860px){.app{grid-template-columns:1fr}.sidebar{display:none}.grid{grid-template-columns:1fr}.kpis,.signals,.agents{grid-template-columns:1fr}.main,.right{padding:1rem}.chat-stream{max-height:none}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-label="Sarthi logo">
+            <path d="M5 18L12 5l7 13" />
+            <path d="M8.5 14h7" />
+          </svg>
+        </div>
+        <div>
+          <h1>Sarthi Command</h1>
+          <p>Guardian operations layer</p>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Mission</div>
+        <button class="nav-item active"><span>Overview</span><span class="pill">LIVE</span></button>
+        <button class="nav-item"><span>MissionState</span><span>→</span></button>
+        <button class="nav-item"><span>Watchlist</span><span>17</span></button>
+        <button class="nav-item"><span>Approvals</span><span>3</span></button>
+        <button class="nav-item"><span>Decision Journal</span><span>→</span></button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Agents</div>
+        <button class="nav-item"><span>@sarthi</span><span>Manager</span></button>
+        <button class="nav-item"><span>@finance</span><span>FG</span></button>
+        <button class="nav-item"><span>@data</span><span>BI</span></button>
+        <button class="nav-item"><span>@ops</span><span>OPS</span></button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Ops</div>
+        <button class="nav-item"><span>Tracing</span><span>OTel</span></button>
+        <button class="nav-item"><span>Eval Scores</span><span>92</span></button>
+        <button class="nav-item"><span>Slack Session</span><span>#</span></button>
+        <button class="nav-item"><span>Integrations</span><span>4</span></button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="header">
+        <div class="headline">
+          <h2>Palantir-style mission dashboard for your guardian system</h2>
+          <p>One operational surface for MissionState, watchlists, approvals, correlation, and multi-agent conversation. Talk to everyone together, or target one specialist with <code>@finance</code>, <code>@data</code>, <code>@ops</code>, or <code>@sarthi</code>.</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn">Session: #sarthi</button>
+          <button class="btn">Tenant: nova-pulse</button>
+          <button class="btn primary">Escalation queue</button>
+        </div>
+      </section>
+
+      <div class="status-line">
+        <span>Mission health <strong>72 / 100</strong></span>
+        <span>Risk level <strong>MEDIUM</strong></span>
+        <span>Active blindspots <strong>5</strong></span>
+        <span>Pending approvals <strong>3</strong></span>
+        <span>Last sync <strong>08:31:12</strong></span>
+      </div>
+
+      <section class="kpis">
+        <div class="card kpi"><div class="label">MRR</div><div class="value">₹4.82L</div><div class="delta up">+8.4% vs last month</div></div>
+        <div class="card kpi"><div class="label">Runway</div><div class="value">7.8 mo</div><div class="delta warn">-0.6 months compression</div></div>
+        <div class="card kpi"><div class="label">Activation</div><div class="value">41%</div><div class="delta warn">Funnel wall at onboarding step 3</div></div>
+        <div class="card kpi"><div class="label">Support Load</div><div class="value">128</div><div class="delta down">+22% week over week</div></div>
+      </section>
+
+      <section class="grid">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h3>MissionState board</h3>
+              <p>Compiled operational state across finance, BI, ops, and execution.</p>
+            </div>
+            <span class="pill">AUTO-COMPILED</span>
+          </div>
+          <div class="signals">
+            <div class="signal"><small>Finance</small><strong>Burn multiple 1.9x</strong><p class="delta warn">Approaching FG-02 threshold</p></div>
+            <div class="signal"><small>BI</small><strong>Cohort -12%</strong><p class="delta down">BG-04 risk emerging</p></div>
+            <div class="signal"><small>Ops</small><strong>Error cluster 14%</strong><p class="delta down">Segment correlation detected</p></div>
+          </div>
+          <div style="margin-top:1rem"><canvas id="missionChart"></canvas></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h3>Guardian watchlist</h3>
+              <p>High-signal patterns currently in play.</p>
+            </div>
+          </div>
+          <div class="watchlist">
+            <div class="watch"><div><h4>FG-04 Runway Compression</h4><p>Burn acceleration is reducing fundraising slack earlier than plan.</p></div><span class="sev high">HIGH</span></div>
+            <div class="watch"><div><h4>BG-04 Cohort Degradation</h4><p>New cohorts retain materially worse than prior cohorts.</p></div><span class="sev med">MED</span></div>
+            <div class="watch"><div><h4>OG-02 Support Outpacing Growth</h4><p>Support growth is rising faster than active user growth.</p></div><span class="sev med">MED</span></div>
+            <div class="watch"><div><h4>OG-01 Error Segment Correlation</h4><p>A concentrated error cluster is affecting one customer segment.</p></div><span class="sev low">LOW</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h3>Agent fleet</h3>
+              <p>Specialists act separately, co-founder synthesizes.</p>
+            </div>
+          </div>
+          <div class="agents">
+            <div class="agent">
+              <div class="agent-top"><div class="avatar a1">S</div><div><h4>Sarthi</h4><p>Manager · synthesis · escalation</p></div></div>
+              <ul><li>Routes questions</li><li>Resolves conflicts</li><li>Queues approvals</li></ul>
+            </div>
+            <div class="agent">
+              <div class="agent-top"><div class="avatar a2">F</div><div><h4>Finance</h4><p>MRR · burn · runway · pricing</p></div></div>
+              <ul><li>Injects numbers</li><li>Flags concentration</li><li>Drafts financing alerts</li></ul>
+            </div>
+            <div class="agent">
+              <div class="agent-top"><div class="avatar a3">D</div><div><h4>Data</h4><p>Cohorts · funnel · retention</p></div></div>
+              <ul><li>Answers metric questions</li><li>Summarizes trends</li><li>Finds activation walls</li></ul>
+            </div>
+            <div class="agent">
+              <div class="agent-top"><div class="avatar a4">O</div><div><h4>Ops</h4><p>Errors · support · deploys</p></div></div>
+              <ul><li>Detects bug convergence</li><li>Tracks service health</li><li>Correlates incidents</li></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h3>Recent mission events</h3>
+              <p>Useful for trust and replay.</p>
+            </div>
+          </div>
+          <div class="timeline">
+            <div class="event"><time>08:03</time><div><strong>Stripe webhook accepted</strong>Invoice payment failure cluster appended to event bus.</div></div>
+            <div class="event"><time>08:07</time><div><strong>Finance watchlist fired</strong>FG-05 and FG-04 evaluated for alert-worthiness.</div></div>
+            <div class="event"><time>08:11</time><div><strong>Correlation raised severity</strong>Support spike correlated with onboarding failure step.</div></div>
+            <div class="event"><time>08:18</time><div><strong>Approval queued</strong>Draft investor-update mention requires founder approval.</div></div>
+            <div class="event"><time>08:29</time><div><strong>MissionState refreshed</strong>Compiled context rebuilt under 800-token limit.</div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="right">
+      <div class="card right-card chat-shell">
+        <div class="chat-header">
+          <div>
+            <h3>Agent chat</h3>
+            <p>Use <strong>@mentions</strong> to route to one agent or leave blank for shared synthesis.</p>
+          </div>
+          <div class="segment">
+            <button class="active">Shared</button>
+            <button>Direct</button>
+          </div>
+        </div>
+
+        <div class="chat-stream">
+          <div class="msg">
+            <div class="msg-head"><div class="msg-author"><div class="mini avatar a1">S</div>Sarthi</div><time>08:12</time></div>
+            <p>I’m seeing an emerging pattern across runway, support load, and cohort degradation. This is not one isolated metric drift; it looks like a compounding execution drag.</p>
+          </div>
+          <div class="msg">
+            <div class="msg-head"><div class="msg-author"><div class="mini avatar a2">F</div>Finance</div><time>08:13</time></div>
+            <p>Runway is still above the panic zone, but the compression trend matters more than the raw months left. If burn continues at this slope, financing optionality narrows faster than it appears.</p>
+          </div>
+          <div class="msg">
+            <div class="msg-head"><div class="msg-author"><div class="mini avatar a3">D</div>Data</div><time>08:14</time></div>
+            <p>The largest funnel break is step 3 in onboarding. Cohorts entering after the last release are retaining 12% worse than the prior baseline.</p>
+          </div>
+          <div class="msg you">
+            <div class="msg-head"><div class="msg-author"><div class="mini avatar a1">Y</div>You</div><time>08:16</time></div>
+            <p>@ops is support load coming from bugs or user confusion?</p>
+          </div>
+          <div class="msg">
+            <div class="msg-head"><div class="msg-author"><div class="mini avatar a4">O</div>Ops</div><time>08:17</time></div>
+            <p>Mostly confusion with a bug cluster overlay. Three issues point to onboarding state desync after the latest deploy, which likely explains both tickets and activation fallout.</p>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="mention-bar">
+            <span class="mention active">@all</span>
+            <span class="mention">@sarthi</span>
+            <span class="mention">@finance</span>
+            <span class="mention">@data</span>
+            <span class="mention">@ops</span>
+          </div>
+          <div class="compose-box">
+            <textarea placeholder="Ask all agents together, or target one specialist with @finance, @data, @ops, or @sarthi..."></textarea>
+            <div class="compose-actions">
+              <div class="hint">Examples: “@finance what happens if we cut hiring for 45 days?” · “@data explain cohort degradation” · “@all what should I do this week?”</div>
+              <button class="btn primary">Send to agents</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card right-card">
+        <div class="panel-head"><div><h3>Approval queue</h3><p>Selection-execution pause for risky actions.</p></div></div>
+        <div class="queue">
+          <div class="queue-item">
+            <div><small>Pending</small><strong>Investor update draft</strong><p>Sarthi wants to mention runway compression in the next investor note.</p><div class="approval"><button class="ok">Approve</button><button class="hold">Hold</button></div></div>
+            <span class="sev med">MED</span>
+          </div>
+          <div class="queue-item">
+            <div><small>Pending</small><strong>Create Jira issue</strong><p>Ops proposes an onboarding desync incident ticket with customer-impact label.</p><div class="approval"><button class="ok">Approve</button><button class="hold">Hold</button></div></div>
+            <span class="sev low">LOW</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card right-card">
+        <div class="panel-head"><div><h3>Operational metrics</h3><p>Trust, latency, and reliability.</p></div></div>
+        <div class="metric-list">
+          <div class="metric-row"><div><small>Average agent response</small><strong>1.8s</strong></div><div class="pill">GOOD</div></div>
+          <div class="metric-row"><div><small>Approval turnaround</small><strong>6m 12s</strong></div><div class="pill">OK</div></div>
+          <div class="metric-row"><div><small>False alert rate</small><strong>4.2%</strong></div><div class="pill">LOW</div></div>
+          <div class="metric-row"><div><small>Context budget</small><strong>612 / 800 tokens</strong></div><div class="pill">SAFE</div></div>
+        </div>
+      </div>
+
+      <p class="footer-note">This should become your internal HTMX screen and Slack-adjacent mission console: one place to inspect state, talk to agents, approve actions, and replay why the guardian said what it said.</p>
+    </aside>
+  </div>
+
+  <script>
+    const ctx = document.getElementById('missionChart');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['W1','W2','W3','W4','W5','W6'],
+        datasets: [
+          {label:'Mission Health', data:[84,82,80,79,75,72], borderColor:'#7dd3fc', backgroundColor:'rgba(125,211,252,.12)', fill:true, tension:.34, borderWidth:2.5, pointRadius:0},
+          {label:'Risk Index', data:[26,29,35,38,45,52], borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.06)', fill:false, tension:.34, borderWidth:2.2, pointRadius:0},
+          {label:'Execution Drag', data:[18,22,24,29,34,39], borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.06)', fill:false, tension:.34, borderWidth:2.2, pointRadius:0}
+        ]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#9fb0c7', usePointStyle:true, boxWidth:8}}},
+        scales:{
+          x:{ticks:{color:'#6e819b'}, grid:{color:'rgba(255,255,255,.04)'}},
+          y:{ticks:{color:'#6e819b'}, grid:{color:'rgba(255,255,255,.04)'}, suggestedMin:0, suggestedMax:100}
+        }
+      }
+    });
+
+    const mentions = document.querySelectorAll('.mention');
+    mentions.forEach(m => m.addEventListener('click', () => {
+      mentions.forEach(x => x.classList.remove('active'));
+      m.classList.add('active');
+      const ta = document.querySelector('textarea');
+      const key = m.textContent.trim();
+      if(key !== '@all') ta.value = key + ' ';
+      else ta.value = '';
+      ta.focus();
+    }));
+  </script>
+</body>
+</html>

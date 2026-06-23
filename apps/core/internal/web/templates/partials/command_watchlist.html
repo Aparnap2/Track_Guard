@@ -1,0 +1,11 @@
+<div class="space-y-2">
+{{range .Items}}
+    <div class="p-3 bg-white rounded-lg shadow-sm border-l-4 {{if eq .Severity "high"}}border-red-500{{else if eq .Severity "med"}}border-yellow-500{{else}}border-green-500{{end}}">
+        <div class="flex items-center justify-between">
+            <span class="font-medium text-sm">{{.Title}}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full {{if eq .Severity "high"}}bg-red-100 text-red-700{{else if eq .Severity "med"}}bg-yellow-100 text-yellow-700{{else}}bg-green-100 text-green-700{{end}}">{{.Severity}}</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">{{.Description}}</p>
+    </div>
+{{end}}
+</div>

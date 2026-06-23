@@ -460,6 +460,9 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 	// HTMX Screen 3: LLMOps Dashboard
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)
 
+	// ── Command Center Routes (admin) ─────────────────────
+	admin.Get("/command", h.CommandCenter)
+
 	// ── HTMX Screen 4: Business Decision Pipeline ──────────────────
 
 	// Direct business routes (HTMX accessible without admin prefix)

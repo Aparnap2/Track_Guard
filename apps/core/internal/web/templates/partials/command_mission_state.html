@@ -1,0 +1,13 @@
+<div class="p-4 bg-white rounded-xl shadow">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold">MissionState board</h3>
+        <span class="text-xs text-gray-400">AUTO-COMPILED</span>
+    </div>
+    {{range .Signals}}
+    <div class="flex items-center gap-2 py-2 border-b last:border-0">
+        <span class="text-xs font-medium {{if eq .DeltaClass "warn"}}text-yellow-600{{else}}text-red-600{{end}}">{{.Domain}}</span>
+        <span class="text-sm">{{.Title}}</span>
+        <span class="text-xs text-gray-500">{{.Description}}</span>
+    </div>
+    {{end}}
+</div>

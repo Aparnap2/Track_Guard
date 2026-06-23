@@ -1,0 +1,14 @@
+<div class="space-y-2">
+{{range .Items}}
+    <div class="p-3 bg-white rounded-lg shadow-sm" id="approval-{{.ID}}">
+        <div class="flex items-center justify-between">
+            <span class="font-medium text-sm">{{.Title}}</span>
+            <div class="flex gap-1">
+                <button hx-post="/api/command/approvals/{{.ID}}/approve" hx-target="#approval-{{.ID}}" hx-swap="outerHTML" class="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200">Approve</button>
+                <button hx-post="/api/command/approvals/{{.ID}}/hold" hx-target="#approval-{{.ID}}" hx-swap="outerHTML" class="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200">Hold</button>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">{{.Description}}</p>
+    </div>
+{{end}}
+</div>

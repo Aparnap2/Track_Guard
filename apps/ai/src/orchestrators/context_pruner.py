@@ -53,11 +53,15 @@ def prune_oldest_messages(messages: list[dict], max_messages: int = 20) -> list[
     last_user = non_system[last_user_idx] if last_user_idx >= 0 else None
     non_system = [m for i, m in enumerate(non_system) if i != last_user_idx]
 
-    keep_count = max_messages - 1
+    keep_count = max_messages
+    if system_msg:
+        keep_count -= 1
     if last_user:
         keep_count -= 1
 
-    if len(non_system) > keep_count:
+    if keep_count <= 0:
+        non_system = []
+    elif len(non_system) > keep_count:
         non_system = non_system[-keep_count:]
 
     result: list[dict] = []

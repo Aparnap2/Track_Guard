@@ -10,7 +10,7 @@ Environment Variables:
 import os
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .retry import circuit_breaker, retry_with_backoff
 
@@ -93,36 +93,27 @@ def get_hubspot_snapshot(tenant_id: str) -> Dict[str, Any]:
         companies = client.crm.companies.get_all(
             properties=["name", "domain", "industry"]
         )
-        return deals, companies
 
-    # Retry on connection / timeout / 5xx; fail-fast on 4xx
-    all_deals, all_companies = retry_with_backoff(
-        _fetch_crm_data,
-        max_attempts=3,
-        base_delay=1.0,
-        max_delay=30.0,
-        exceptions=(Exception,),
-        retry_if=_is_retryable,
-    )
+        total_deals_cents = 0
+        won_deals_30d_cents = 0
+        pipeline_cents = 0
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
-    total_deals_cents = 0
-    won_deals_30d_cents = 0
-    pipeline_cents = 0
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        for deal in all_deals:
+            props = getattr(deal, "properties", {}) or {}
+            amount_cents = _parse_amount_cents(props.get("amount"))
+            dealstage = (props.get("dealstage", "") or "").lower()
+            closedate_str = props.get("closedate", "") or ""
 
-    for deal in all_deals:
-        props = getattr(deal, "properties", {}) or {}
-        amount_cents = _parse_amount_cents(props.get("amount"))
-        dealstage = (props.get("dealstage", "") or "").lower()
-        closedate_str = props.get("closedate", "") or ""
+            total_deals_cents += amount_cents
 
-        total_deals_cents += amount_cents
-
-        if "closedwon" in dealstage or dealstage == "closed_won":
-            if closedate_str:
-                try:
-                    closedate = datetime.fromisoformat(closedate_str.replace("Z", "+00:00"))
-                    if closedate >= thirty_days_ago:
+            if "closedwon" in dealstage or dealstage == "closed_won":
+                if closedate_str:
+                    try:
+                        closedate = datetime.fromisoformat(closedate_str.replace("Z", "+00:00"))
+                        if closedate >= thirty_days_ago:
+                            won_deals_30d_cents += amount_cents
+                    except (ValueError, TypeError):
                         won_deals_30d_cents += amount_cents
                 except (ValueError, TypeError):
                     won_deals_30d_cents += amount_cents

@@ -973,17 +973,17 @@ func (h *Handler) APICommandTimeline(c *fiber.Ctx) error {
 	}
 
 	if h.db != nil {
-		rows, err := h.db.Query(`
-			SELECT
-				agent_name,
-				COALESCE(action, ''),
-				COALESCE(status, ''),
-				COALESCE(error, ''),
-				created_at
-			FROM agent_traces
-			ORDER BY created_at DESC
-			LIMIT 20
-		`)
+        rows, err := h.db.Query(`
+            SELECT
+                COALESCE(agent_name, ''),
+                COALESCE(action, ''),
+                COALESCE(status, ''),
+                COALESCE(error, ''),
+                created_at
+            FROM agent_traces
+            ORDER BY created_at DESC
+            LIMIT 20
+        `)
 		if err == nil {
 			defer rows.Close()
 			var liveEvents []fiber.Map

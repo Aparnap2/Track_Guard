@@ -2,7 +2,7 @@
 Startup Guardian Orchestration — Startup Health Assessment Pipeline.
 
 Assembles the unified MissionStateV2 from multiple data connectors and
-computes cross-domain overall health.
+computes cross-domain overall health. Sends Slack alerts on CRITICAL/ATTENTION.
 """
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ import logging
 from typing import Any
 from uuid import uuid4
 
+from src.events.bus import emit
+from src.notifications.slack_alert_forwarder import SlackAlertForwarder
 from src.guardian.assemblers import (
     assemble_execution_state,
     assemble_finance_state,
@@ -21,6 +23,7 @@ from src.guardian.assemblers import (
 from src.integrations.erpnext import get_erpnext_snapshot
 from src.integrations.hubspot import get_hubspot_snapshot
 from src.integrations.quickbooks import get_quickbooks_snapshot
+from src.services.dead_letter import send_to_dlq
 from src.states.schemas import (
     ExecutionHealth,
     FinancialHealth,
@@ -36,17 +39,6 @@ _CONNECTORS: list[tuple[str, Any]] = [
     ("quickbooks", get_quickbooks_snapshot),
 ]
 
-_HEALTH_MAP: dict[str, SupportHealth] = {
-    "critical": SupportHealth.CRITICAL,
-    "attention": SupportHealth.ATTENTION,
-    "good": SupportHealth.GOOD,
-    "on_track": SupportHealth.GOOD,
-    "at_risk": SupportHealth.ATTENTION,
-    "blocked": SupportHealth.CRITICAL,
-    "healthy": SupportHealth.GOOD,
-    "warning": SupportHealth.ATTENTION,
-}
-
 _HEALTH_PRIORITY: list[SupportHealth] = [
     SupportHealth.CRITICAL,
     SupportHealth.ATTENTION,
@@ -56,7 +48,17 @@ _HEALTH_PRIORITY: list[SupportHealth] = [
 
 def _map_health(health: Any) -> SupportHealth:
     raw = health.value if hasattr(health, "value") else str(health)
-    return _HEALTH_MAP.get(raw, SupportHealth.GOOD)
+    mapping = {
+        "critical": SupportHealth.CRITICAL,
+        "attention": SupportHealth.ATTENTION,
+        "good": SupportHealth.GOOD,
+        "on_track": SupportHealth.GOOD,
+        "at_risk": SupportHealth.ATTENTION,
+        "blocked": SupportHealth.CRITICAL,
+        "healthy": SupportHealth.GOOD,
+        "warning": SupportHealth.ATTENTION,
+    }
+    return mapping.get(raw, SupportHealth.GOOD)
 
 
 async def run_startup_guardian(tenant_id: str) -> dict[str, Any]:
@@ -117,5 +119,25 @@ async def run_startup_guardian(tenant_id: str) -> dict[str, Any]:
     state.raw_snapshots = snapshots
 
     log.info("Startup Guardian complete run_id=%s tenant=%s ok=%s", run_id, tenant_id, all(connectors_ok.values()))
+
+    # ── Alert delivery via SlackAlertForwarder (non-blocking) ──────
+    try:
+        forwarder = SlackAlertForwarder()
+        alert_result = forwarder.forward_mission_alert(state)
+        if alert_result.get("ok") and not alert_result.get("skipped"):
+            await emit("startup_guardian.alert_delivered", tenant_id, {
+                "run_id": run_id,
+                "overall_health": state.overall_health.value,
+                "connectors_ok": connectors_ok,
+            })
+    except Exception as exc:
+        log.warning("Failed to send Startup Guardian alert: %s", exc)
+
+    # Emit completion event
+    await emit("startup_guardian.completed", tenant_id, {
+        "run_id": run_id,
+        "overall_health": state.overall_health.value,
+        "connectors_ok": connectors_ok,
+    })
 
     return state.model_dump()

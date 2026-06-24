@@ -1,0 +1,9 @@
+<div class="grid grid-cols-4 gap-4">
+{{range .KPIs}}
+    <div class="p-4 bg-white rounded-xl shadow">
+        <div class="text-sm text-gray-500">{{.Label}}</div>
+        <div class="text-2xl font-bold">{{.Value}}</div>
+        <div class="text-xs {{if eq .Trend "up"}}text-green-600{{else if eq .Trend "warn"}}text-yellow-600{{else}}text-red-600{{end}}">{{.Delta}}</div>
+    </div>
+{{end}}
+</div>

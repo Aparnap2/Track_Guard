@@ -1,7 +1,7 @@
 # IterateSwarm Makefile
 # Quick commands for development and operations
 
-.PHONY: help up down status test build clean proto verify deps logs restart prod prod-up prod-down prod-logs
+.PHONY: help up down status test build build-py clean proto verify deps logs restart mock-up mock-down mock-status mock-logs test-unit test-docker test-startup test-all test-go run-startup prod prod-up prod-down prod-logs
 
 # Default target
 help:
@@ -22,8 +22,23 @@ help:
 	@echo "  prod        Build production Docker images"
 	@echo "  prod-up     Start production stack"
 	@echo "  prod-down   Stop production stack"
-	@echo "  v3-up      Start V3 minimal stack"
-	@echo "  v3-down    Stop V3 stack"
+	@echo "  v3-up         Start V3 minimal stack"
+	@echo "  v3-down       Stop V3 stack"
+	@echo ""
+	@echo "Mock Containers:"
+	@echo "  mock-up       Start Mockoon mock containers (ERPNext :8099, HubSpot :8098, QuickBooks :8097)"
+	@echo "  mock-down     Stop and remove Mockoon containers"
+	@echo "  mock-status   Check mock container status"
+	@echo "  mock-logs     Tail Mockoon container logs"
+	@echo ""
+	@echo "Test Commands:"
+	@echo "  test-unit     Run Python unit tests"
+	@echo "  test-docker   Run Python Docker integration tests"
+	@echo "  test-go       Run all Go tests"
+	@echo "  test-startup  Run startup guardian tests"
+	@echo ""
+	@echo "Run Commands:"
+	@echo "  run-startup   Run Startup Guardian CLI"
 
 # Start all infrastructure and applications
 up:
@@ -49,6 +64,11 @@ build:
 	cd apps/core && go build -o bin/server ./cmd/server && go build -o bin/worker ./cmd/worker
 	@echo "Built: apps/core/bin/server"
 	@echo "Built: apps/core/bin/worker"
+
+# Build Python AI worker dependencies (uv sync)
+build-py:
+	@echo "Building Python AI worker..."
+	cd apps/ai && uv sync
 
 # Clean build artifacts
 clean:
@@ -79,6 +99,42 @@ logs:
 # Full restart
 restart: down up
 	@echo "Full restart complete"
+
+# ───────────────────────────────────────────────────────
+# Mock Container Management (Mockoon)
+# ───────────────────────────────────────────────────────
+
+# Start Mockoon mock containers (ERPNext :8099, HubSpot :8098, QuickBooks :8097)
+mock-up:
+	@echo "Starting Mockoon mock containers..."
+	docker run -d --name sg-mock-erpnext -p 8099:8080 \
+		-v $(PWD)/apps/ai/tests/mockoon/erpnext.json:/data:ro \
+		mockoon/cli:latest -d /data -p 8080
+	docker run -d --name sg-mock-hubspot -p 8098:8080 \
+		-v $(PWD)/apps/ai/tests/mockoon/hubspot.json:/data:ro \
+		mockoon/cli:latest -d /data -p 8080
+	docker run -d --name sg-mock-quickbooks -p 8097:8080 \
+		-v $(PWD)/apps/ai/tests/mockoon/quickbooks.json:/data:ro \
+		mockoon/cli:latest -d /data -p 8080
+	@echo "Mock containers started"
+
+# Stop and remove Mockoon containers (idempotent)
+mock-down:
+	@echo "Stopping Mockoon containers..."
+	docker stop sg-mock-erpnext sg-mock-hubspot sg-mock-quickbooks 2>/dev/null || true
+	docker rm sg-mock-erpnext sg-mock-hubspot sg-mock-quickbooks 2>/dev/null || true
+	@echo "Mock containers stopped"
+
+# Check if mock containers are running
+mock-status:
+	@echo "Mock Container Status:"
+	@docker inspect --format '  {{slice .Name 1 | printf "%-35s"}} {{.State.Status}}' \
+	  sg-mock-erpnext sg-mock-hubspot sg-mock-quickbooks 2>&1 || true
+
+# Tail Mockoon container logs
+mock-logs:
+	@echo "Tailing Mockoon logs (Ctrl+C to exit)..."
+	docker logs -f sg-mock-erpnext sg-mock-hubspot sg-mock-quickbooks
 
 # Security Tests
 security-test:
@@ -157,14 +213,8 @@ demo-health:
 	@curl -sf http://localhost:6333/health > /dev/null && echo "✅ Qdrant" || echo "❌ Qdrant"
 	@curl -sf http://localhost:3000/api/health > /dev/null && echo "✅ Go API" || echo "❌ Go API"
 
-test-all:
-	@echo "=== Running All Tests ==="
-	@echo ""
-	@echo "🐍 Python tests..."
-	cd apps/ai && uv run pytest tests/ -v --tb=short -q || true
-	@echo ""
-	@echo "🔹 Go tests (with race detection)..."
-	cd apps/core && go test -race -count=1 ./... -v || true
+test-all: test-unit test-docker test-go
+	@echo "=== All tests complete ==="
 
 test-e2e:
 	@echo "=== Running E2E Tests ==="
@@ -173,6 +223,39 @@ test-e2e:
 	@echo ""
 	@echo "🧪 Running E2E workflow tests (requires all services)..."
 	cd apps/ai && uv run pytest tests/test_e2e_workflow.py -v -s -m e2e --timeout=300 || true
+
+# ───────────────────────────────────────────────────────
+# Python Test Suite Commands
+# ───────────────────────────────────────────────────────
+
+## Run Python unit tests (fast, no external dependencies)
+test-unit:
+	@echo "Running Python unit tests..."
+	cd apps/ai && uv run pytest tests/unit/ -v
+
+## Run Python Docker integration tests (requires mock containers)
+test-docker:
+	@echo "Running Python Docker integration tests..."
+	cd apps/ai && uv run pytest tests/integration/docker/ -v
+
+## Run all Go tests
+test-go:
+	@echo "Running Go tests..."
+	cd apps/core && go test ./... -v
+
+## Run startup guardian unit tests
+test-startup:
+	@echo "Running startup guardian unit tests..."
+	cd apps/ai && uv run pytest tests/unit/orchestration/ -v
+
+# ───────────────────────────────────────────────────────
+# Run Commands
+# ───────────────────────────────────────────────────────
+
+## Run Startup Guardian CLI (requires mock containers)
+run-startup:
+	@echo "Running Startup Guardian CLI..."
+	cd apps/ai && uv run python -c "from src.orchestration.run_startup_guardian_cli import main; main()"
 
 # ===========================================
 # Health Check

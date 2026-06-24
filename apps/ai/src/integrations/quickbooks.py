@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 import httpx
 
+from .retry import circuit_breaker, retry_with_backoff
+
 logger = logging.getLogger(__name__)
 
 MOCK_MODE: bool = not bool(os.getenv("QUICKBOOKS_CLIENT_ID", "").strip())
@@ -56,7 +58,14 @@ def _calculate_dso(total_receivables_cents: int, paid_30d_cents: int) -> Optiona
     return round(total_receivables_cents / avg_daily_sales_cents, 1)
 
 
+@circuit_breaker("quickbooks")
 def get_quickbooks_snapshot(tenant_id: str) -> Dict[str, Any]:
+    """Get QuickBooks finance snapshot for a tenant.
+
+    In ``MOCK_MODE`` (credentials not set) returns seed data.  In production,
+    failures after retry are **raised** rather than silently replaced with
+    mock data — this ensures errors are visible to the orchestrator.
+    """
     if MOCK_MODE:
         logger.info("[MOCK MODE] Returning seed QuickBooks data for tenant %s", tenant_id)
         return _add_metadata(_MOCK_DATA, "quickbooks_mock")
@@ -67,22 +76,26 @@ def get_quickbooks_snapshot(tenant_id: str) -> Dict[str, Any]:
     api_url = os.getenv("QUICKBOOKS_API_URL", "http://localhost:8097")
 
     if not client_id or not access_token or not company_id:
-        logger.warning("QuickBooks credentials not fully configured for tenant %s, using mock", tenant_id)
+        logger.warning(
+            "QuickBooks credentials not fully configured for tenant %s, "
+            "returning mock data",
+            tenant_id,
+        )
         return _add_metadata(_MOCK_DATA, "quickbooks_mock")
 
-    try:
-        url = f"{api_url}/v3/company/{company_id}/query"
-        params = {"query": "select * from Invoice STARTPOSITION 1 MAXRESULTS 1000"}
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-            "Content-Type": "application/text",
-        }
+    url = f"{api_url}/v3/company/{company_id}/query"
+    params = {"query": "select * from Invoice STARTPOSITION 1 MAXRESULTS 1000"}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/text",
+    }
 
+    def _fetch_invoices() -> list:
+        """Single HTTP attempt — retried by ``retry_with_backoff``."""
         response = httpx.get(url, params=params, headers=headers, timeout=30.0)
         response.raise_for_status()
         data = response.json()
-
         query_response = data.get("QueryResponse", {}) or {}
         invoices = query_response.get("Invoice", [])
 

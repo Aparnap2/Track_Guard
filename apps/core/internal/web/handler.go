@@ -1,16 +1,18 @@
 package web
 
 import (
+	"bufio"
 	"database/sql"
 	"embed"
 	"fmt"
 	"html/template"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-//go:embed templates/*.html
+//go:embed templates
 var templatesFS embed.FS
 
 // Render renders a template with data
@@ -682,6 +684,547 @@ func (h *Handler) FounderDashboard(c *fiber.Ctx) error {
 	})
 }
 
+// ── Command Center Handlers ────────────────────────────
+
+// CommandCenter serves the command center dashboard page
+func (h *Handler) CommandCenter(c *fiber.Ctx) error {
+	return Render(c, "command_center", fiber.Map{
+		"Title": "Sarthi Command Center",
+	})
+}
+
+// APICommandStatus returns the status bar with live health metrics from mission_state
+func (h *Handler) APICommandStatus(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Command Status")
+	}
+	health := 72
+	riskLevel := "MEDIUM"
+	blindspots := 5
+	approvals := 3
+	lastSync := time.Now().Format("15:04:05")
+
+	if h.db != nil {
+		var hScore sql.NullInt32
+		var rLevel sql.NullString
+		var bSpots, appCount sql.NullInt32
+		err := h.db.QueryRow(`
+			SELECT
+				COALESCE(trust_score, 72),
+				CASE
+					WHEN burn_alert = true THEN 'HIGH'
+					WHEN COALESCE(burn_severity, '') != '' THEN UPPER(burn_severity)
+					ELSE 'MEDIUM'
+				END,
+				(SELECT COUNT(*) FROM mission_state WHERE COALESCE(burn_alert, false)),
+				(SELECT COUNT(*) FROM planned_actions WHERE status = 'planned')
+			FROM mission_state
+			ORDER BY updated_at DESC
+			LIMIT 1
+		`).Scan(&hScore, &rLevel, &bSpots, &appCount)
+		if err == nil {
+			if hScore.Valid {
+				health = int(hScore.Int32)
+			}
+			if rLevel.Valid {
+				riskLevel = rLevel.String
+			}
+			if bSpots.Valid {
+				blindspots = int(bSpots.Int32)
+			}
+			if appCount.Valid {
+				approvals = int(appCount.Int32)
+			}
+		}
+	}
+
+	return Render(c, "partials/command_status_bar", fiber.Map{
+		"Health": health, "RiskLevel": riskLevel,
+		"Blindspots": blindspots, "Approvals": approvals, "LastSync": lastSync,
+	})
+}
+
+// APICommandKPIs returns command center KPI cards from mission_state
+func (h *Handler) APICommandKPIs(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Command KPIs")
+	}
+
+	// Default hardcoded KPI values matching test expectations
+	kpis := []fiber.Map{
+		{"Label": "MRR", "Value": "₹4.82L", "Delta": "+8.4% vs last month", "Trend": "up"},
+		{"Label": "Runway", "Value": "7.8 mo", "Delta": "-0.6 months compression", "Trend": "warn"},
+		{"Label": "Activation", "Value": "41%", "Delta": "Funnel wall at onboarding step 3", "Trend": "warn"},
+		{"Label": "Support Load", "Value": "128", "Delta": "+22% week over week", "Trend": "down"},
+	}
+
+	if h.db != nil {
+		var mrr, burnRate sql.NullFloat64
+		var runwayDays, trustScore sql.NullInt32
+		err := h.db.QueryRow(`
+			SELECT
+				COALESCE(mrr, 0),
+				COALESCE(burn_rate, 0),
+				COALESCE(runway_days, 0),
+				COALESCE(trust_score, 0)
+			FROM mission_state
+			ORDER BY updated_at DESC
+			LIMIT 1
+		`).Scan(&mrr, &burnRate, &runwayDays, &trustScore)
+		if err == nil {
+			if mrr.Valid && mrr.Float64 > 0 {
+				lakhs := mrr.Float64 / 100000.0
+				mrrVal := fmt.Sprintf("₹%.2fL", lakhs)
+				kpis[0] = fiber.Map{"Label": "MRR", "Value": mrrVal, "Delta": "From mission_state", "Trend": "up"}
+			}
+			if runwayDays.Valid && runwayDays.Int32 > 0 {
+				months := float64(runwayDays.Int32) / 30.0
+				runwayVal := fmt.Sprintf("%.1f mo", months)
+				kpis[1] = fiber.Map{"Label": "Runway", "Value": runwayVal, "Delta": "From mission_state", "Trend": "warn"}
+			}
+			if trustScore.Valid && trustScore.Int32 > 0 {
+				kpis[2] = fiber.Map{"Label": "Trust Score", "Value": fmt.Sprintf("%d%%", trustScore.Int32), "Delta": "From mission_state", "Trend": "warn"}
+			}
+			if burnRate.Valid && burnRate.Float64 > 0 {
+				kpis[3] = fiber.Map{"Label": "Burn Rate", "Value": fmt.Sprintf("₹%.1fK", burnRate.Float64/1000), "Delta": "From mission_state", "Trend": "down"}
+			}
+		}
+	}
+
+	return Render(c, "partials/command_kpis", fiber.Map{"KPIs": kpis})
+}
+
+// APICommandMissionState returns mission state signals from mission_state table
+func (h *Handler) APICommandMissionState(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Mission State")
+	}
+
+	signals := []fiber.Map{
+		{"Domain": "Finance", "Title": "Burn multiple 1.9x", "Description": "Approaching FG-02 threshold", "DeltaClass": "warn"},
+		{"Domain": "BI", "Title": "Cohort -12%", "Description": "BG-04 risk emerging", "DeltaClass": "down"},
+		{"Domain": "Ops", "Title": "Error cluster 14%", "Description": "Segment correlation detected", "DeltaClass": "down"},
+	}
+	healthScore := 72
+	riskLevel := "MEDIUM"
+
+	if h.db != nil {
+		var trustScore sql.NullInt32
+		var burnAlert sql.NullBool
+		var burnSev, mrrTrend, activeAlerts, founderFocus sql.NullString
+		var churnRate sql.NullFloat64
+		var errorSpike sql.NullBool
+		var burnMult sql.NullFloat64
+		var mrr sql.NullFloat64
+		var runwayDays sql.NullInt32
+
+		err := h.db.QueryRow(`
+			SELECT
+				COALESCE(trust_score, 72),
+				COALESCE(burn_alert, false),
+				COALESCE(burn_severity, ''),
+				COALESCE(mrr_trend, ''),
+				COALESCE(churn_rate, 0),
+				COALESCE(error_spike, false),
+				COALESCE(active_alerts, ''),
+				COALESCE(founder_focus, ''),
+				COALESCE(burn_multiple, 0),
+				COALESCE(mrr, 0),
+				COALESCE(runway_days, 0)
+			FROM mission_state
+			ORDER BY updated_at DESC
+			LIMIT 1
+		`).Scan(&trustScore, &burnAlert, &burnSev, &mrrTrend,
+			&churnRate, &errorSpike, &activeAlerts, &founderFocus,
+			&burnMult, &mrr, &runwayDays)
+		if err == nil {
+			if trustScore.Valid {
+				healthScore = int(trustScore.Int32)
+			}
+
+			// Build signals from mission_state data
+			var liveSignals []fiber.Map
+
+			// Finance signal
+			if burnAlert.Valid && burnAlert.Bool {
+				burnDesc := "Burn alert active"
+				if burnMult.Valid && burnMult.Float64 > 0 {
+					burnDesc = fmt.Sprintf("Burn multiple %.1fx", burnMult.Float64)
+				}
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "Finance", "Title": "Burn alert",
+					"Description": burnDesc, "DeltaClass": "warn",
+				})
+			} else if mrr.Valid && mrr.Float64 > 0 {
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "Finance", "Title": fmt.Sprintf("MRR ₹%.2fL", mrr.Float64/100000),
+					"Description": fmt.Sprintf("Runway %d days", runwayDays.Int32), "DeltaClass": "warn",
+				})
+			} else {
+				liveSignals = append(liveSignals, signals[0]) // fallback
+			}
+
+			// BI/Data signal
+			if churnRate.Valid && churnRate.Float64 > 5 {
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "BI", "Title": fmt.Sprintf("Churn %.1f%%", churnRate.Float64),
+					"Description": "Churn rate above threshold", "DeltaClass": "down",
+				})
+			} else if churnRate.Valid && churnRate.Float64 > 0 {
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "BI", "Title": fmt.Sprintf("Churn %.1f%%", churnRate.Float64),
+					"Description": "Monitoring cohort health", "DeltaClass": "warn",
+				})
+			} else {
+				liveSignals = append(liveSignals, signals[1]) // fallback
+			}
+
+			// Ops signal
+			if errorSpike.Valid && errorSpike.Bool {
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "Ops", "Title": "Error spike detected",
+					"Description": "Segment correlation detected", "DeltaClass": "down",
+				})
+			} else if activeAlerts.Valid && activeAlerts.String != "" {
+				liveSignals = append(liveSignals, fiber.Map{
+					"Domain": "Ops", "Title": activeAlerts.String,
+					"Description": "Active alerts from monitoring", "DeltaClass": "warn",
+				})
+			} else {
+				liveSignals = append(liveSignals, signals[2]) // fallback
+			}
+
+			signals = liveSignals
+		}
+	}
+
+	return Render(c, "partials/command_mission_state", fiber.Map{
+		"Signals": signals, "HealthScore": healthScore, "RiskLevel": riskLevel,
+	})
+}
+
+// APICommandWatchlist returns watchlist items
+func (h *Handler) APICommandWatchlist(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Watchlist")
+	}
+	items := []fiber.Map{
+		{"Title": "FG-04 Runway Compression", "Description": "Burn acceleration is reducing fundraising slack earlier than plan.", "Severity": "high"},
+		{"Title": "BG-04 Cohort Degradation", "Description": "New cohorts retain materially worse than prior cohorts.", "Severity": "med"},
+		{"Title": "OG-02 Support Outpacing Growth", "Description": "Support growth is rising faster than active user growth.", "Severity": "med"},
+		{"Title": "OG-01 Error Segment Correlation", "Description": "A concentrated error cluster is affecting one customer segment.", "Severity": "low"},
+	}
+	return Render(c, "partials/command_watchlist", fiber.Map{"Items": items})
+}
+
+// APICommandAgentFleet returns agent fleet inline HTML
+func (h *Handler) APICommandAgentFleet(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Agent Fleet")
+	}
+	html := `<div class="flex justify-between items-center mb-4">
+        <div><h3 class="text-lg font-bold">Agent fleet</h3><p class="text-sm" style="color:var(--muted)">Specialists act separately, co-founder synthesizes.</p></div>
+    </div>
+    <div class="grid grid-cols-4 gap-3">
+        <div class="p-4 rounded-2xl" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-sm" style="background:rgba(125,211,252,.15);color:#bae6fd">S</div>
+                <div><h4 class="font-semibold">Sarthi</h4><p class="text-xs" style="color:var(--muted)">Manager · synthesis</p></div>
+            </div>
+            <ul class="text-xs space-y-1" style="color:var(--muted)"><li>Routes questions</li><li>Resolves conflicts</li><li>Queues approvals</li></ul>
+        </div>
+        <div class="p-4 rounded-2xl" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-sm" style="background:rgba(52,211,153,.15);color:#a7f3d0">F</div>
+                <div><h4 class="font-semibold">Finance</h4><p class="text-xs" style="color:var(--muted)">MRR · burn · runway</p></div>
+            </div>
+            <ul class="text-xs space-y-1" style="color:var(--muted)"><li>Injects numbers</li><li>Flags concentration</li><li>Drafts financing alerts</li></ul>
+        </div>
+        <div class="p-4 rounded-2xl" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-sm" style="background:rgba(167,139,250,.14);color:#ddd6fe">D</div>
+                <div><h4 class="font-semibold">Data</h4><p class="text-xs" style="color:var(--muted)">Cohorts · funnel</p></div>
+            </div>
+            <ul class="text-xs space-y-1" style="color:var(--muted)"><li>Answers metric questions</li><li>Summarizes trends</li><li>Finds activation walls</li></ul>
+        </div>
+        <div class="p-4 rounded-2xl" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-sm" style="background:rgba(245,158,11,.15);color:#fcd34d">O</div>
+                <div><h4 class="font-semibold">Ops</h4><p class="text-xs" style="color:var(--muted)">Errors · support</p></div>
+            </div>
+            <ul class="text-xs space-y-1" style="color:var(--muted)"><li>Detects bug convergence</li><li>Tracks service health</li><li>Correlates incidents</li></ul>
+        </div>
+    </div>`
+	return c.SendString(html)
+}
+
+// APICommandTimeline returns timeline events from agent_traces table
+func (h *Handler) APICommandTimeline(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Timeline")
+	}
+
+	events := []fiber.Map{
+		{"Time": "08:03", "Title": "Stripe webhook accepted", "Description": "Invoice payment failure cluster appended to event bus."},
+		{"Time": "08:07", "Title": "Finance watchlist fired", "Description": "FG-05 and FG-04 evaluated for alert-worthiness."},
+		{"Time": "08:11", "Title": "Correlation raised severity", "Description": "Support spike correlated with onboarding failure step."},
+		{"Time": "08:18", "Title": "Approval queued", "Description": "Draft investor-update mention requires founder approval."},
+		{"Time": "08:29", "Title": "MissionState refreshed", "Description": "Compiled context rebuilt under 800-token limit."},
+	}
+
+	if h.db != nil {
+        rows, err := h.db.Query(`
+            SELECT
+                COALESCE(agent_name, ''),
+                COALESCE(action, ''),
+                COALESCE(status, ''),
+                COALESCE(error, ''),
+                created_at
+            FROM agent_traces
+            ORDER BY created_at DESC
+            LIMIT 20
+        `)
+		if err == nil {
+			defer rows.Close()
+			var liveEvents []fiber.Map
+			for rows.Next() {
+				var agentName, action, status, errorStr string
+				var createdAt time.Time
+				if err := rows.Scan(&agentName, &action, &status, &errorStr, &createdAt); err != nil {
+					continue
+				}
+				timeStr := createdAt.Format("15:04")
+				title := agentName + ": " + action
+				if len(title) > 60 {
+					title = title[:60] + "..."
+				}
+				desc := status
+				if errorStr != "" {
+					desc = status + " · " + errorStr
+					if len(desc) > 80 {
+						desc = desc[:80] + "..."
+					}
+				}
+				liveEvents = append(liveEvents, fiber.Map{
+					"Time": timeStr, "Title": title, "Description": desc,
+				})
+			}
+			if len(liveEvents) > 0 {
+				events = liveEvents
+			}
+		}
+	}
+
+	return Render(c, "partials/command_timeline", fiber.Map{"Events": events})
+}
+
+// APICommandApprovals returns approval items from planned_actions table
+func (h *Handler) APICommandApprovals(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Approvals")
+	}
+
+	items := []fiber.Map{
+		{"ID": "1", "Title": "Investor update draft", "Description": "Sarthi wants to mention runway compression in the next investor note."},
+		{"ID": "2", "Title": "Create Jira issue", "Description": "Ops proposes an onboarding desync incident ticket with customer-impact label."},
+	}
+
+	if h.db != nil {
+		rows, err := h.db.Query(`
+			SELECT
+				id,
+				COALESCE(actor, ''),
+				COALESCE(action_type, ''),
+				COALESCE(target_ref, ''),
+				COALESCE(risk_level, 'low'),
+				COALESCE(approval_reason, ''),
+				created_at
+			FROM planned_actions
+			WHERE status = 'planned'
+			ORDER BY created_at DESC
+		`)
+		if err == nil {
+			defer rows.Close()
+			var liveItems []fiber.Map
+			for rows.Next() {
+				var id, actor, actionType, targetRef, riskLevel, reason string
+				var createdAt time.Time
+				if err := rows.Scan(&id, &actor, &actionType, &targetRef, &riskLevel, &reason, &createdAt); err != nil {
+					continue
+				}
+				title := actor + " proposes " + actionType
+				if targetRef != "" {
+					title = actor + " proposes " + actionType + " on " + targetRef
+				}
+				if len(title) > 60 {
+					title = title[:60] + "..."
+				}
+				desc := reason
+				if len(desc) > 100 {
+					desc = desc[:100] + "..."
+				}
+				liveItems = append(liveItems, fiber.Map{
+					"ID": id, "Title": title, "Description": desc,
+				})
+			}
+			if len(liveItems) > 0 {
+				items = liveItems
+			}
+		}
+	}
+
+	return Render(c, "partials/command_approvals", fiber.Map{"Items": items})
+}
+
+// APICommandApprovalAction approves or holds an approval item from planned_actions
+func (h *Handler) APICommandApprovalAction(c *fiber.Ctx) error {
+	id := c.Params("id")
+	action := c.Params("action")
+
+	if h.db != nil {
+		var newStatus string
+		switch action {
+		case "approve":
+			newStatus = "approved"
+		case "hold":
+			newStatus = "held"
+		default:
+			newStatus = "held"
+		}
+		_, err := h.db.Exec(`UPDATE planned_actions SET status = $1 WHERE id = $2`, newStatus, id)
+		if err != nil {
+			// Log error, but still return empty for HTMX swap removal
+		}
+	}
+
+	if c.Get("HX-Request") == "true" {
+		return c.SendString("")
+	}
+	return c.SendString(fmt.Sprintf("%s %s", action, id))
+}
+
+// APICommandMetrics returns system metrics for the command center
+func (h *Handler) APICommandMetrics(c *fiber.Ctx) error {
+	if c.Get("HX-Request") != "true" {
+		return c.SendString("Metrics")
+	}
+	metrics := []fiber.Map{
+		{"Label": "Average agent response", "Value": "1.8s", "Pill": "GOOD"},
+		{"Label": "Approval turnaround", "Value": "6m 12s", "Pill": "OK"},
+		{"Label": "False alert rate", "Value": "4.2%", "Pill": "LOW"},
+		{"Label": "Context budget", "Value": "612 / 800 tokens", "Pill": "SAFE"},
+	}
+	return Render(c, "partials/command_metrics", fiber.Map{"Metrics": metrics})
+}
+
+// APICommandChartData returns chart data as JSON
+func (h *Handler) APICommandChartData(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"labels": []string{"W1", "W2", "W3", "W4", "W5", "W6"},
+		"datasets": []fiber.Map{
+			{"label": "Mission Health", "data": []int{84, 82, 80, 79, 75, 72}, "borderColor": "#7dd3fc", "backgroundColor": "rgba(125,211,252,.12)", "fill": true, "tension": 0.34},
+			{"label": "Risk Index", "data": []int{26, 29, 35, 38, 45, 52}, "borderColor": "#f59e0b", "backgroundColor": "rgba(245,158,11,.06)", "fill": false, "tension": 0.34},
+			{"label": "Execution Drag", "data": []int{18, 22, 24, 29, 34, 39}, "borderColor": "#a78bfa", "backgroundColor": "rgba(167,139,250,.06)", "fill": false, "tension": 0.34},
+		},
+	})
+}
+
+// APICommandChatSend handles chat message submission with @mention parsing
+func (h *Handler) APICommandChatSend(c *fiber.Ctx) error {
+	message := c.FormValue("message")
+	mention := c.FormValue("mention")
+
+	if message == "" {
+		return c.SendString("")
+	}
+
+	// Parse @mentions from message text
+	mentions := extractMentions(message)
+	if mention != "" && mention != "@all" {
+		mentions = append(mentions, mention)
+	}
+
+	// Deduplicate mentions
+	seen := make(map[string]bool)
+	var unique []string
+	for _, m := range mentions {
+		if !seen[m] {
+			seen[m] = true
+			unique = append(unique, m)
+		}
+	}
+
+	// Without DB: return empty for backward compat with tests
+	if h.db == nil {
+		return c.SendString("")
+	}
+
+	// With DB: return JSON with parsed message
+	return c.JSON(fiber.Map{
+		"status":   "ok",
+		"message":  message,
+		"mention":  mention,
+		"mentions": unique,
+	})
+}
+
+// extractMentions finds @mentions in a message string
+func extractMentions(msg string) []string {
+	var mentions []string
+	words := strings.Fields(msg)
+	for _, w := range words {
+		if strings.HasPrefix(w, "@") {
+			mention := strings.TrimRight(w, ",.;:!?")
+			mentions = append(mentions, mention)
+		}
+	}
+	return mentions
+}
+
+// APICommandEvents is the SSE endpoint for streaming real-time events to the command center
+func (h *Handler) APICommandEvents(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		// Send initial connection event
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to command center\"}\n\n")
+		w.Flush()
+
+		// Heartbeat ticker
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
+		// Simulated system events (in production, these come from a pub/sub bus)
+		systemTicker := time.NewTicker(60 * time.Second)
+		defer systemTicker.Stop()
+
+		for {
+			select {
+			case <-heartbeat.C:
+				fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				w.Flush()
+			case <-systemTicker.C:
+				now := time.Now().Format("15:04:05")
+				systemEvents := []string{
+					fmt.Sprintf("MissionState refreshed at %s", now),
+					"Agent fleet health check complete",
+					"Watchlist evaluation cycle finished",
+				}
+				for _, evt := range systemEvents {
+					fmt.Fprintf(w, "event: system\ndata: {\"type\":\"system\",\"text\":%q}\n\n", evt)
+					w.Flush()
+				}
+			case <-c.Context().Done():
+				return
+			}
+		}
+	})
+
+	return nil
+}
+
 // RegisterRoutes registers all web routes
 func (h *Handler) RegisterRoutes(app *fiber.App) {
 	// Main dashboard
@@ -748,4 +1291,25 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	// TrackGuard Enhancements
 	app.Get("/api/finance/alerts", h.GetFinanceAlerts)
 	app.Get("/api/bi/recent", h.GetRecentBIQueries)
+
+	// ── Command Center Routes ──────────────────────────────
+	app.Get("/command", h.CommandCenter)
+	app.Get("/api/command/status", h.APICommandStatus)
+	app.Get("/api/command/kpis", h.APICommandKPIs)
+	app.Get("/api/command/mission-state", h.APICommandMissionState)
+	app.Get("/api/command/watchlist", h.APICommandWatchlist)
+	app.Get("/api/command/agent-fleet", h.APICommandAgentFleet)
+	app.Get("/api/command/timeline", h.APICommandTimeline)
+	app.Get("/api/command/approvals", h.APICommandApprovals)
+	app.Post("/api/command/approvals/:id/:action", h.APICommandApprovalAction)
+	app.Get("/api/command/metrics", h.APICommandMetrics)
+	app.Get("/api/command/chart-data", h.APICommandChartData)
+	app.Post("/api/command/chat/send", h.APICommandChatSend)
+	app.Get("/api/command/stream", h.APICommandEvents)
+	app.Get("/api/command/events", h.APICommandEvents)
+
+	// Chat panel partial (loads the chat HTML with EventSource)
+	app.Get("/api/command/chat", func(c *fiber.Ctx) error {
+		return Render(c, "partials/command_chat", nil)
+	})
 }

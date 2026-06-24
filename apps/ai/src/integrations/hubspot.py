@@ -12,6 +12,8 @@ import logging
 from typing import Any, Dict, Optional
 from datetime import datetime, timedelta, timezone
 
+from .retry import circuit_breaker, retry_with_backoff
+
 logger = logging.getLogger(__name__)
 
 MOCK_MODE: bool = not bool(os.getenv("HUBSPOT_ACCESS_TOKEN", "").strip())
@@ -41,25 +43,54 @@ def _parse_amount_cents(amount_str: Optional[str]) -> int:
         return 0
 
 
+def _is_retryable(exc: Exception) -> bool:
+    """Return *True* if *exc* represents a transient failure worth retrying."""
+    # Network-level errors — always retry
+    if isinstance(exc, (OSError, ConnectionError, TimeoutError)):
+        return True
+    # httpx-specific transient errors (by type name to avoid hard import)
+    exc_type = type(exc).__name__
+    if "Timeout" in exc_type or "Connect" in exc_type:
+        return True
+    # HTTP status errors with 5xx (hubspot ApiException uses .status_code or .status)
+    for attr in ("status_code", "status"):
+        code = getattr(exc, attr, None)
+        if isinstance(code, int) and code >= 500:
+            return True
+    return False
+
+
+@circuit_breaker("hubspot")
 def get_hubspot_snapshot(tenant_id: str) -> Dict[str, Any]:
+    """Get HubSpot revenue snapshot for a tenant.
+
+    In ``MOCK_MODE`` (token not set) returns seed data.  In production,
+    failures after retry are **raised** rather than silently replaced with
+    mock data — this ensures errors are visible to the orchestrator.
+    """
     if MOCK_MODE:
         logger.info("[MOCK MODE] Returning seed HubSpot data for tenant %s", tenant_id)
         return _add_metadata(_MOCK_DATA, "hubspot_mock")
 
     token = os.getenv("HUBSPOT_ACCESS_TOKEN", "")
     if not token:
-        logger.warning("HubSpot token not configured for tenant %s, using mock data", tenant_id)
+        logger.warning(
+            "HubSpot token not configured for tenant %s, returning mock data",
+            tenant_id,
+        )
         return _add_metadata(_MOCK_DATA, "hubspot_mock")
 
-    try:
-        from hubspot import HubSpot
+    # ImportError means the SDK isn't installed — fatal in production
+    from hubspot import HubSpot  # noqa: delay import to MOCK_MODE branch above
 
-        client = HubSpot(access_token=token)
+    client = HubSpot(access_token=token)
 
-        all_deals = client.crm.deals.get_all(
+    def _fetch_crm_data() -> tuple:
+        """Single attempt to pull deals + companies from HubSpot."""
+        deals = client.crm.deals.get_all(
             properties=["dealname", "amount", "dealstage", "closedate", "createdate"]
         )
-        all_companies = client.crm.companies.get_all(
+        companies = client.crm.companies.get_all(
             properties=["name", "domain", "industry"]
         )
 
@@ -84,27 +115,22 @@ def get_hubspot_snapshot(tenant_id: str) -> Dict[str, Any]:
                             won_deals_30d_cents += amount_cents
                     except (ValueError, TypeError):
                         won_deals_30d_cents += amount_cents
-                else:
+                except (ValueError, TypeError):
                     won_deals_30d_cents += amount_cents
+            else:
+                won_deals_30d_cents += amount_cents
 
-            if not any(s in dealstage for s in ["closedwon", "closed_won", "closedlost", "closed_lost"]):
-                pipeline_cents += amount_cents
+        if not any(s in dealstage for s in ["closedwon", "closed_won", "closedlost", "closed_lost"]):
+            pipeline_cents += amount_cents
 
-        active_customers = sum(1 for _ in all_companies)
+    active_customers = sum(1 for _ in all_companies)
 
-        result = {
-            "revenue_total_deals_cents": total_deals_cents,
-            "revenue_won_deals_30d_cents": won_deals_30d_cents,
-            "revenue_pipeline_deals_cents": pipeline_cents,
-            "revenue_active_customers": active_customers,
-            "revenue_mrr_cents": None,
-        }
+    result = {
+        "revenue_total_deals_cents": total_deals_cents,
+        "revenue_won_deals_30d_cents": won_deals_30d_cents,
+        "revenue_pipeline_deals_cents": pipeline_cents,
+        "revenue_active_customers": active_customers,
+        "revenue_mrr_cents": None,
+    }
 
-        return _add_metadata(result, "hubspot")
-
-    except ImportError:
-        logger.warning("hubspot-api-client package not installed, falling back to mock")
-        return _add_metadata(_MOCK_DATA, "hubspot_mock")
-    except Exception as e:
-        logger.error("Error fetching HubSpot data for tenant %s: %s", tenant_id, e)
-        return _add_metadata(_MOCK_DATA, "hubspot_mock")
+    return _add_metadata(result, "hubspot")

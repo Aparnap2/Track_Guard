@@ -1,0 +1,11 @@
+<div class="space-y-1">
+{{range .Events}}
+    <div class="flex items-start gap-3 py-2 border-b last:border-0">
+        <span class="text-xs font-mono text-gray-400 w-12">{{.Time}}</span>
+        <div>
+            <span class="text-sm font-medium">{{.Title}}</span>
+            <p class="text-xs text-gray-500">{{.Description}}</p>
+        </div>
+    </div>
+{{end}}
+</div>

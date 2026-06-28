@@ -11,7 +11,7 @@ import (
 
 func TestLLMOpsDashboard_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)
@@ -33,7 +33,7 @@ func TestLLMOpsDashboard_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestLLMOpsDashboard_ShowsEvalScores(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)
@@ -56,7 +56,7 @@ func TestLLMOpsDashboard_ShowsEvalScores(t *testing.T) {
 
 func TestLLMOpsDashboard_ShowsAcknowledgementRate(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/llmops", h.APILLMOpsDashboard)

@@ -16,8 +16,6 @@ from typing import Dict, Any
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
-from ..memory.qdrant_ops import QdrantMemoryManager
-
 logger = logging.getLogger(__name__)
 
 
@@ -51,8 +49,6 @@ class MemoryMaintenanceWorkflow:
         }
 
         logger.info(f"Starting memory maintenance for tenant: {tenant_filter or 'all'}")
-
-        memory_manager = QdrantMemoryManager()
 
         try:
             # Weight decay operation
@@ -104,9 +100,6 @@ class MemoryMaintenanceWorkflow:
             results["errors"].append(error_msg)
             logger.error(error_msg)
             raise
-
-        finally:
-            await memory_manager.close()
 
         results["end_time"] = datetime.utcnow().isoformat()
         results["duration_seconds"] = (

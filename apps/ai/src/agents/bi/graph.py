@@ -140,7 +140,7 @@ class BIAnalystGraph:
     async def _decide_alert(self, mission_context: dict):
         """Phase 2: One small LLM call with Pydantic output."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             snapshot_json = json.dumps(self.state.metrics_snapshot, default=str)
 
             prompt = (
@@ -186,7 +186,7 @@ class BIAnalystGraph:
     async def _generate_narrative(self):
         """Phase 3: Bounded narrative generation (max 200 words)."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             decision = self.state.alert_decision
             snapshot_json = json.dumps(self.state.metrics_snapshot, default=str)
 

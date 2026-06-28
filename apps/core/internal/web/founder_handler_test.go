@@ -244,7 +244,7 @@ func TestEnergyScoreRange(t *testing.T) {
 
 // TestWeekStartCalculation tests week start date calculation.
 func TestWeekStartCalculation(t *testing.T) {
-	now := time.Now()
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
 	weekStart := now.Truncate(7 * 24 * time.Hour)
 
 	if weekStart.After(now) {

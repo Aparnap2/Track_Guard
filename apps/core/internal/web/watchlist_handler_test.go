@@ -11,7 +11,7 @@ import (
 
 func TestWatchlistViewer_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/watchlist", h.APIWatchlist)
@@ -33,7 +33,7 @@ func TestWatchlistViewer_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestWatchlistViewer_ShowsAlertPatterns(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/watchlist", h.APIWatchlist)
@@ -60,7 +60,7 @@ func TestWatchlistViewer_ShowsAlertPatterns(t *testing.T) {
 // Test: Add threshold update test when handler is implemented
 func TestWatchlistViewer_ThresholdUpdateReturnsUpdatedRow(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Post("/htmx/watchlist/:id/threshold", h.APIWatchlistThresholdUpdate)

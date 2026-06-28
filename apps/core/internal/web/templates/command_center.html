@@ -6,12 +6,17 @@
     <title>{{.Title}}</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-surface: #0f1117;
             --bg-card: #1a1d27;
             --bg-card-hover: #222637;
+            --bg-elevated: #242837;
             --border: #2a2e3a;
+            --border-light: rgba(255,255,255,0.06);
             --text: #e8eaed;
             --text-secondary: #9aa0a6;
             --text-muted: #6b7280;
@@ -20,207 +25,1036 @@
             --accent-yellow: #fbbf24;
             --accent-red: #f87171;
             --accent-purple: #a78bfa;
+            --accent-cyan: #22d3ee;
+            --glow-blue: rgba(125,211,252,0.08);
+            --glow-green: rgba(52,211,153,0.08);
+            --glow-red: rgba(248,113,113,0.08);
+            --glow-yellow: rgba(251,191,36,0.08);
         }
+
+        * { box-sizing: border-box; }
+
         body {
             background: var(--bg-surface);
             color: var(--text);
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
+
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 1rem;
-            transition: border-color 0.2s;
+            border-radius: 0.75rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
         .card:hover {
             border-color: rgba(255,255,255,0.1);
+            box-shadow: 0 0 20px rgba(125,211,252,0.04);
         }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1rem 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .card-body {
+            padding: 1rem;
+        }
+
+        .glass {
+            background: rgba(26, 29, 39, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+        }
+
         .glow-accent {
             box-shadow: 0 0 20px rgba(125,211,252,0.06);
         }
+
         .metric-value {
             font-variant-numeric: tabular-nums;
         }
-        ::-webkit-scrollbar { width: 6px; }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3e4a; }
+
+        /* Skeleton loading animation */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+            border-radius: 0.375rem;
+        }
+        @keyframes skeleton-pulse {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Fade-in transition for content swaps */
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Status dot indicator */
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.connected {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px rgba(52,211,153,0.5);
+        }
+        .status-dot.disconnected {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(248,113,113,0.5);
+        }
+        .status-dot.connecting {
+            background: var(--accent-yellow);
+            animation: dot-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.4; box-shadow: none; }
+            50% { opacity: 1; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+        }
+
+        /* Agent color pills */
+        .agent-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .agent-sarthi { background: rgba(125,211,252,0.15); color: var(--accent-blue); }
+        .agent-finance { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+        .agent-data { background: rgba(167,139,250,0.15); color: var(--accent-purple); }
+        .agent-ops { background: rgba(251,191,36,0.15); color: var(--accent-yellow); }
+        .agent-system { background: rgba(107,114,128,0.15); color: var(--text-muted); }
+
+        /* Severity badges */
+        .sev-high { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+        .sev-med { background: rgba(251,191,36,0.15); color: var(--accent-yellow); }
+        .sev-low { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+
+        /* HTMX indicator */
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+
+        /* Chat message animations */
+        .chat-msg {
+            animation: chatSlideIn 0.2s ease-out;
+        }
+        @keyframes chatSlideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Button base dark style */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-primary {
+            background: rgba(125,211,252,0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(125,211,252,0.2);
+        }
+        .btn-primary:hover {
+            background: rgba(125,211,252,0.25);
+            border-color: rgba(125,211,252,0.35);
+        }
+        .btn-approve {
+            background: rgba(52,211,153,0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(52,211,153,0.2);
+        }
+        .btn-approve:hover {
+            background: rgba(52,211,153,0.25);
+            border-color: rgba(52,211,153,0.35);
+        }
+        .btn-hold {
+            background: rgba(251,191,36,0.15);
+            color: var(--accent-yellow);
+            border: 1px solid rgba(251,191,36,0.2);
+        }
+        .btn-hold:hover {
+            background: rgba(251,191,36,0.25);
+            border-color: rgba(251,191,36,0.35);
+        }
+        .btn-send {
+            background: var(--accent-blue);
+            color: #0f1117;
+            font-weight: 600;
+            border: none;
+        }
+        .btn-send:hover {
+            background: #92d9fd;
+        }
+        .btn-send:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Input dark style */
+        .input-dark {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8125rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        .input-dark:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(125,211,252,0.1);
+        }
+        .input-dark::placeholder {
+            color: var(--text-muted);
+        }
+
+        select.input-dark {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239aa0a6' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            padding-right: 1.75rem;
+        }
+
+        /* Collapsible sections */
+        .collapse-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.25s ease;
+            max-height: 10000px;
+            opacity: 1;
+        }
+        .collapse-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .chevron-icon.rotated {
+            transform: rotate(180deg);
+        }
+
+        /* Tooltip styles */
+        .tooltip-trigger {
+            display: inline-flex;
+            align-items: center;
+        }
+        .tooltip-trigger::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e2233;
+            color: #e8eaed;
+            font-size: 0.75rem;
+            font-weight: 400;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            white-space: nowrap;
+            max-width: 260px;
+            white-space: normal;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            z-index: 100;
+            line-height: 1.4;
+            width: max-content;
+        }
+        .tooltip-trigger:hover::after,
+        .tooltip-trigger:focus::after {
+            opacity: 1;
+        }
+        @media (max-width: 640px) {
+            .tooltip-trigger::after {
+                left: 0;
+                transform: none;
+                white-space: normal;
+                max-width: 200px;
+            }
+        }
+
+        /* Slide nav link hover */
+        .nav-slide-link:hover {
+            background: rgba(125,211,252,0.08);
+            color: var(--text) !important;
+        }
+
+        /* Mobile-friendly touch targets */
+        @media (max-width: 768px) {
+            .btn, button, [role="button"] {
+                min-height: 44px;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hide-mobile { display: none !important; }
+        }
+        @media (min-width: 769px) {
+            .show-mobile { display: none !important; }
+        }
     </style>
 </head>
 <body>
-    <div class="max-w-[1600px] mx-auto px-4 py-4">
-        <!-- Header -->
+
+<div class="max-w-[1600px] mx-auto px-3 md:px-4 py-3 md:py-4">
+
+    <!-- ═══════ MOBILE HAMBURGER NAV ═══════ -->
+    <div id="mobile-nav-overlay" class="fixed inset-0 bg-black/60 z-40 hidden" style="backdrop-filter:blur(4px)"></div>
+    <nav id="slide-nav" class="fixed top-0 left-0 bottom-0 w-72 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto" style="background:var(--bg-card);border-right:1px solid var(--border);padding:1.25rem">
         <div class="flex items-center justify-between mb-6">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl grid place-items-center font-bold text-lg" style="background:rgba(125,211,252,.12);color:var(--accent-blue)">S</div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight">Sarthi Command Center</h1>
-                    <p class="text-xs" style="color:var(--text-muted)">Mission control · real-time operational dashboard</p>
-                </div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg grid place-items-center font-bold text-sm" style="background:rgba(125,211,252,0.12);color:var(--accent-blue)">S</div>
+                <span class="font-bold text-sm" style="color:var(--text)">TrackGuard</span>
             </div>
-            <div class="flex items-center gap-3 text-xs" style="color:var(--text-muted)">
-                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>All systems nominal</span>
-                <span id="live-timestamp"></span>
+            <button id="nav-close-btn" class="w-8 h-8 rounded-lg grid place-items-center hover:bg-white/5" aria-label="Close navigation">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="space-y-1">
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="status-bar" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>Status &amp; Health</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="kpis" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <span>Key Metrics</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="mission-state" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>Alerts &amp; Signals</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="watchlist" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                <span>Watch Items</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="timeline" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>Recent Activity</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="approvals" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span>Approvals</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="metrics" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>Performance</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="chart-panel" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                <span>Trend Chart</span>
+            </button>
+            <button class="nav-slide-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors" data-section="chat" style="color:var(--text-secondary);min-height:44px">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>Agent Chat</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ═══════ HEADER ═══════ -->
+    <header class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <!-- Hamburger (mobile only) -->
+            <button id="hamburger-btn" class="show-mobile w-10 h-10 rounded-lg grid place-items-center hover:bg-white/5 flex-shrink-0" style="min-height:44px;min-width:44px" aria-label="Open navigation">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-secondary)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl grid place-items-center font-bold text-base md:text-lg glow-accent hide-mobile" style="background:rgba(125,211,252,0.12);color:var(--accent-blue);box-shadow:0 0 20px rgba(125,211,252,0.1)">S</div>
+            <div>
+                <h1 class="text-base md:text-xl font-bold tracking-tight">TrackGuard</h1>
+                <p class="text-[10px] md:text-xs" style="color:var(--text-muted)">Admin command center</p>
             </div>
         </div>
+        <div class="flex items-center gap-3 md:gap-4 text-xs" style="color:var(--text-muted)">
+            <!-- Connection status -->
+            <div class="flex items-center gap-1.5">
+                <span id="conn-status-dot" class="status-dot connecting"></span>
+                <span id="conn-status-text" class="hide-mobile">⟳ Reconnecting...</span>
+            </div>
+            <!-- Divider -->
+            <span class="w-px h-4" style="background:var(--border)"></span>
+            <!-- Live timestamp -->
+            <span id="live-timestamp" class="font-mono text-[11px] md:text-xs" style="color:var(--text-secondary)"></span>
+        </div>
+    </header>
 
-        <!-- Row 1: Status Bar -->
-        <div class="mb-4" id="status-bar-container"
-             hx-get="/api/command/status"
+    <!-- ═══════ PLAIN-ENGLISH SUMMARY BAR ═══════ -->
+    <div class="card px-4 py-2.5 mb-4 flex items-center gap-2 text-xs" style="color:var(--text-muted);background:rgba(125,211,252,0.04);border-color:rgba(125,211,252,0.1)">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:var(--accent-blue)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Dashboard updated live. All numbers refresh automatically. Use the chat panel to talk to your AI agents with <strong>@mentions</strong> like <span class="font-mono text-[10px] px-1 py-0.5 rounded" style="background:rgba(125,211,252,0.1);color:var(--accent-blue)">@sarthi</span>.</span>
+    </div>
+
+    <!-- ═══════ ROW 1: Status Bar ═══════ -->
+    <div class="mb-3 md:mb-4 collapsible-section" id="status-bar-container"
+         hx-get="/api/command/status"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML"
+         >
+        <div class="card px-4 py-3">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)" class="text-xs">Overall Health</span><span class="font-semibold tabular-nums skeleton" style="width:2rem;height:1rem">&nbsp;</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)" class="text-xs">Risk level</span><span class="font-semibold skeleton" style="width:3.5rem;height:1rem">&nbsp;</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)" class="text-xs">Watch Items</span><span class="font-semibold skeleton" style="width:1.5rem;height:1rem">&nbsp;</span></div>
+                <div class="flex items-center gap-2"><span style="color:var(--text-muted)" class="text-xs">Approvals</span><span class="font-semibold skeleton" style="width:1.5rem;height:1rem">&nbsp;</span></div>
+                <div class="flex items-center gap-2 hide-mobile"><span style="color:var(--text-muted)" class="text-xs">Last sync</span><span class="font-mono text-[11px] skeleton" style="width:4rem;height:1rem">&nbsp;</span></div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes loader-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+    </style>
+
+    <!-- ═══════ ROW 2: KPI Cards ═══════ -->
+    <div class="mb-3 md:mb-4 collapsible-section" id="kpis-container"
+         hx-get="/api/command/kpis"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML"
+         >
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-semibold flex items-center gap-1.5" style="color:var(--text)">
+                Key Metrics
+                <span class="tooltip-trigger relative" data-tip="Your key business numbers, updated live">
+                    <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+            </h2>
+            <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="kpis-container" aria-label="Toggle section">
+                <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+        </div>
+        <div class="collapse-content">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div class="card p-3 md:p-4"><div class="skeleton h-3 w-12 mb-2"></div><div class="skeleton h-7 w-20 mb-2"></div><div class="skeleton h-3 w-24"></div></div>
+                <div class="card p-3 md:p-4"><div class="skeleton h-3 w-12 mb-2"></div><div class="skeleton h-7 w-20 mb-2"></div><div class="skeleton h-3 w-24"></div></div>
+                <div class="card p-3 md:p-4"><div class="skeleton h-3 w-12 mb-2"></div><div class="skeleton h-7 w-20 mb-2"></div><div class="skeleton h-3 w-24"></div></div>
+                <div class="card p-3 md:p-4"><div class="skeleton h-3 w-12 mb-2"></div><div class="skeleton h-7 w-20 mb-2"></div><div class="skeleton h-3 w-24"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ ROW 3: Mission State + Watchlist ═══════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
+
+        <!-- Mission Status -->
+        <div class="collapsible-section fade-in" id="mission-state-container"
+             hx-get="/api/command/mission-state"
              hx-trigger="load, every 30s"
              hx-swap="innerHTML">
-            <div class="card p-4 flex items-center gap-6 text-sm">
-                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Mission health</span><span class="font-semibold">—</span></div>
-                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Risk level</span><span class="font-semibold">—</span></div>
-                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Blindspots</span><span class="font-semibold">—</span></div>
-                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Approvals</span><span class="font-semibold">—</span></div>
-                <div class="flex items-center gap-2"><span style="color:var(--text-muted)">Last sync</span><span class="font-mono text-xs">—</span></div>
-            </div>
-        </div>
-
-        <!-- Row 2: KPIs -->
-        <div class="mb-4" id="kpis-container"
-             hx-get="/api/command/kpis"
-             hx-trigger="load, every 30s"
-             hx-swap="innerHTML">
-            <div class="grid grid-cols-4 gap-4">
-                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
-                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
-                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
-                <div class="card p-4"><div style="color:var(--text-muted)" class="text-sm">—</div><div class="text-2xl font-bold">—</div></div>
-            </div>
-        </div>
-
-        <!-- Row 3: Mission State + Watchlist -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div id="mission-state-container"
-                 hx-get="/api/command/mission-state"
-                 hx-trigger="load, every 30s"
-                 hx-swap="innerHTML">
-                <div class="card p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-semibold">MissionState board</h3>
-                        <span class="text-xs" style="color:var(--text-muted)">AUTO-COMPILED</span>
-                    </div>
-                    <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading signals...</div>
-                </div>
-            </div>
-            <div id="watchlist-container"
-                 hx-get="/api/command/watchlist"
-                 hx-trigger="load, every 30s"
-                 hx-swap="innerHTML">
-                <div class="card p-4">
-                    <h3 class="font-semibold mb-3">Watchlist</h3>
-                    <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading watchlist...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Row 4: Agent Fleet + Timeline -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="card p-4" id="agent-fleet-container"
-                 hx-get="/api/command/agent-fleet"
-                 hx-trigger="load"
-                 hx-swap="innerHTML">
-                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading agents...</div>
-            </div>
-            <div class="card p-4" id="timeline-container"
-                 hx-get="/api/command/timeline"
-                 hx-trigger="load, every 30s"
-                 hx-swap="innerHTML">
-                <h3 class="font-semibold mb-3">Event Timeline</h3>
-                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading timeline...</div>
-            </div>
-        </div>
-
-        <!-- Row 5: Approvals + Metrics -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="card p-4" id="approvals-container"
-                 hx-get="/api/command/approvals"
-                 hx-trigger="load, every 10s"
-                 hx-swap="innerHTML">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold">Pending Approvals</h3>
-                    <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(251,191,36,.12);color:var(--accent-yellow)">Waiting</span>
-                </div>
-                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading approvals...</div>
-            </div>
-            <div class="card p-4" id="metrics-container"
-                 hx-get="/api/command/metrics"
-                 hx-trigger="load, every 30s"
-                 hx-swap="innerHTML">
-                <h3 class="font-semibold mb-3">System Metrics</h3>
-                <div style="color:var(--text-muted)" class="text-sm py-4 text-center">Loading metrics...</div>
-            </div>
-        </div>
-
-        <!-- Row 6: Chart + Chat -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
             <div class="card p-4">
-                <h3 class="font-semibold mb-3">Trend</h3>
-                <div id="chart-container"
-                     hx-get="/api/command/chart-data"
-                     hx-trigger="load, every 30s"
-                     hx-swap="innerHTML">
-                    <canvas id="command-chart" height="200"></canvas>
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                        Mission Status
+                        <span class="tooltip-trigger relative" data-tip="Alerts and signals our system is tracking">
+                            <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] md:text-xs px-2 py-0.5 rounded-full" style="background:rgba(125,211,252,0.1);color:var(--accent-blue)">Auto-updated</span>
+                        <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="mission-state-container" aria-label="Toggle section">
+                            <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse-content">
+                    <div class="space-y-3">
+                        <div class="skeleton h-10 w-full"></div>
+                        <div class="skeleton h-10 w-full"></div>
+                        <div class="skeleton h-10 w-full"></div>
+                    </div>
                 </div>
             </div>
-            <div id="chat-container"
-                 hx-get="/api/command/chat"
-                 hx-trigger="load"
-                 hx-swap="innerHTML">
-                <div class="card p-4 h-80 flex items-center justify-center">
-                    <div style="color:var(--text-muted)" class="text-sm">Loading chat...</div>
+        </div>
+
+        <!-- Watch Items -->
+        <div class="collapsible-section fade-in" id="watchlist-container"
+             hx-get="/api/command/watchlist"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                        Watch Items
+                        <span class="tooltip-trigger relative" data-tip="Items we're keeping an eye on">
+                            <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                    </h3>
+                    <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="watchlist-container" aria-label="Toggle section">
+                        <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+                <div class="collapse-content">
+                    <div class="space-y-2">
+                        <div class="skeleton h-14 w-full"></div>
+                        <div class="skeleton h-14 w-full"></div>
+                        <div class="skeleton h-14 w-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ═══════ ROW 4: Recent Activity ═══════ -->
+    <div class="mb-3 md:mb-4 collapsible-section fade-in" id="timeline-container"
+         hx-get="/api/command/timeline"
+         hx-trigger="load, every 15s"
+         hx-swap="innerHTML">
+        <div class="card p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                    Recent Activity
+                    <span class="tooltip-trigger relative" data-tip="Latest actions and events across your team">
+                        <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </span>
+                </h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] md:text-xs flex items-center gap-1.5" style="color:var(--text-muted)">
+                        <span class="status-dot connected" style="width:6px;height:6px"></span>
+                        Updating live
+                    </span>
+                    <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="timeline-container" aria-label="Toggle section">
+                        <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="collapse-content">
+                <div class="space-y-2">
+                    <div class="skeleton h-8 w-full"></div>
+                    <div class="skeleton h-8 w-full"></div>
+                    <div class="skeleton h-8 w-full"></div>
+                    <div class="skeleton h-8 w-full"></div>
+                    <div class="skeleton h-8 w-full"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Update live timestamp
-        function updateTimestamp() {
-            const el = document.getElementById('live-timestamp');
-            if (el) el.textContent = new Date().toLocaleTimeString();
-        }
-        setInterval(updateTimestamp, 1000);
-        updateTimestamp();
+    <!-- ═══════ ROW 5: Approvals + Performance ═══════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
 
-        // Chart.js rendering when data loads
-        document.addEventListener('htmx:afterSwap', function(evt) {
-            if (evt.detail.target.id === 'chart-container') {
-                const chartData = evt.detail.target.querySelector('script[data-chart]');
-                if (chartData) renderChart(JSON.parse(chartData.textContent));
-            }
+        <!-- Approvals (revealed lazy load) -->
+        <div class="collapsible-section fade-in" id="approvals-container"
+             hx-get="/api/command/approvals"
+             hx-trigger="revealed, every 10s"
+             hx-swap="innerHTML"
+             >
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                        Actions Needing Your Approval
+                        <span class="tooltip-trigger relative" data-tip="Decisions that need your review">
+                            <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] md:text-xs px-2 py-0.5 rounded-full" style="background:rgba(251,191,36,0.12);color:var(--accent-yellow)">Needs review</span>
+                        <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="approvals-container" aria-label="Toggle section">
+                            <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse-content">
+                    <div class="space-y-2">
+                        <div class="skeleton h-14 w-full"></div>
+                        <div class="skeleton h-14 w-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance (revealed lazy load) -->
+        <div class="collapsible-section fade-in" id="metrics-container"
+             hx-get="/api/command/metrics"
+             hx-trigger="revealed, every 30s"
+             hx-swap="innerHTML"
+             >
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                        Performance
+                        <span class="tooltip-trigger relative" data-tip="How fast your system is running">
+                            <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                    </h3>
+                    <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="metrics-container" aria-label="Toggle section">
+                        <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+                <div class="collapse-content">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="skeleton h-16 w-full"></div>
+                        <div class="skeleton h-16 w-full"></div>
+                        <div class="skeleton h-16 w-full"></div>
+                        <div class="skeleton h-16 w-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ═══════ ROW 6: Chart + Chat ═══════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-4">
+
+        <!-- Chart Panel (revealed lazy load) -->
+        <div class="collapsible-section card p-4 fade-in" id="chart-panel">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-sm md:text-base flex items-center gap-1.5">
+                    Trend Chart
+                    <span class="tooltip-trigger relative" data-tip="6-week performance trends">
+                        <svg class="w-3.5 h-3.5 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </span>
+                </h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] md:text-xs" style="color:var(--text-muted)">6-week view</span>
+                    <button class="collapse-toggle show-mobile w-8 h-8 grid place-items-center rounded-lg hover:bg-white/5 transition-colors" style="min-height:44px;min-width:44px" data-target="chart-panel" aria-label="Toggle section">
+                        <svg class="w-4 h-4 chevron-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="collapse-content">
+                <div id="chart-container"
+                     hx-trigger="revealed"
+                     hx-get="/api/command/chart-data"
+                     hx-swap="none"
+                     class="relative">
+                    <canvas id="command-chart" height="200" class="w-full"></canvas>
+                    <div id="chart-loader" class="flex items-center justify-center py-8" style="color:var(--text-muted)">
+                        <div class="flex flex-col items-center gap-2">
+                            <svg class="animate-spin h-5 w-5" style="color:var(--accent-blue)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span class="text-xs">Loading chart...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="collapsible-section fade-in" id="chat-container"
+             hx-get="/api/command/chat"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="card h-[28rem] flex items-center justify-center">
+                <div class="flex flex-col items-center gap-2" style="color:var(--text-muted)">
+                    <svg class="animate-spin h-5 w-5" style="color:var(--accent-blue)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span class="text-xs">Loading chat panel...</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                                  -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+    'use strict';
+
+    /* ── Live Timestamp ── */
+    function updateTimestamp() {
+        const el = document.getElementById('live-timestamp');
+        if (el) el.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+    }
+    setInterval(updateTimestamp, 1000);
+    updateTimestamp();
+
+    /* ── Dashboard Connection Status SSE (heartbeats only) ── */
+    let dashboardEventSource = null;
+    let dashReconnectTimer = null;
+
+    const connDot = document.getElementById('conn-status-dot');
+    const connText = document.getElementById('conn-status-text');
+
+    function setDashConnStatus(state) {
+        if (!connDot) return;
+        connDot.className = 'status-dot ' + state;
+        if (connText) {
+            var labels = { connected: '✅ Live', disconnected: '❌ Offline', connecting: '⟳ Reconnecting...' };
+            connText.textContent = labels[state] || state;
+        }
+    }
+
+    function connectDashboardSSE() {
+        if (dashboardEventSource) {
+            dashboardEventSource.close();
+            dashboardEventSource = null;
+        }
+        setDashConnStatus('connecting');
+
+        dashboardEventSource = new EventSource('/api/command/events');
+
+        dashboardEventSource.addEventListener('connected', function() {
+            setDashConnStatus('connected');
         });
 
-        // Load chart on page load via fetch
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('/api/command/chart-data')
-                .then(r => r.json())
-                .then(data => {
-                    const canvas = document.getElementById('command-chart');
-                    if (!canvas || typeof Chart === 'undefined') return;
-                    renderChartOnCanvas(canvas, data);
-                })
-                .catch(() => {});
+        dashboardEventSource.addEventListener('heartbeat', function() {
+            setDashConnStatus('connected');
         });
 
-        function renderChartOnCanvas(canvas, data) {
-            if (!canvas || !data) return;
-            const ctx = canvas.getContext('2d');
-            if (window._commandChart) window._commandChart.destroy();
-            // Simple inline chart render using colored bars as fallback
-            if (data.labels && data.datasets) {
-                canvas.parentElement.innerHTML = '<div class="text-xs" style="color:var(--text-muted)">Chart loaded. Install Chart.js for interactive view.</div>' +
-                    '<div class="mt-2 text-xs" style="color:var(--text-secondary)">' +
-                    data.labels.join(' · ') +
-                    '</div>';
+        dashboardEventSource.onerror = function() {
+            setDashConnStatus('disconnected');
+            if (dashboardEventSource) {
+                dashboardEventSource.close();
+                dashboardEventSource = null;
+            }
+            if (dashReconnectTimer) clearTimeout(dashReconnectTimer);
+            dashReconnectTimer = setTimeout(connectDashboardSSE, 5000);
+        };
+    }
+
+    /* ── Clear Chat Input After Send ── */
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        var path = evt.detail.requestConfig && evt.detail.requestConfig.path;
+        if (path && path.endsWith('/api/command/chat/send') && evt.detail.successful) {
+            var form = document.getElementById('chat-form');
+            if (form) {
+                var input = form.querySelector('input[name="message"]');
+                if (input) input.value = '';
             }
         }
+    });
 
-        function renderChart(data) {
-            const canvas = document.getElementById('command-chart');
-            if (canvas) renderChartOnCanvas(canvas, data);
+    /* ── Chart.js Lazy Loading ── */
+    let chartLoaded = false;
+    let chartInstance = null;
+
+    const chartPanel = document.getElementById('chart-panel');
+    if (chartPanel) {
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting && !chartLoaded) {
+                    chartLoaded = true;
+                    loadChartJS();
+                    observer.disconnect();
+                }
+            });
+        }, { threshold: 0.1 });
+        observer.observe(chartPanel);
+    }
+
+    function loadChartJS() {
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+        script.onload = function() {
+            fetchChartData();
+        };
+        script.onerror = function() {
+            // Fallback: show simple data display
+            document.getElementById('chart-loader').innerHTML =
+                '<span class="text-xs" style="color:var(--text-muted)">Chart.js failed to load</span>';
+        };
+        document.head.appendChild(script);
+    }
+
+    function fetchChartData() {
+        var loader = document.getElementById('chart-loader');
+        fetch('/api/command/chart-data')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (loader) loader.style.display = 'none';
+                renderChart(data);
+            })
+            .catch(function() {
+                if (loader) loader.innerHTML =
+                    '<span class="text-xs" style="color:var(--text-muted)">Failed to load chart data</span>';
+            });
+    }
+
+    function renderChart(data) {
+        var canvas = document.getElementById('command-chart');
+        if (!canvas || typeof Chart === 'undefined' || !data || !data.labels) return;
+
+        if (chartInstance) {
+            chartInstance.destroy();
         }
-    </script>
+
+        var ctx = canvas.getContext('2d');
+
+        var colors = {
+            'Mission Health': { border: '#7dd3fc', bg: 'rgba(125,211,252,0.1)', point: '#7dd3fc' },
+            'Risk Index': { border: '#f59e0b', bg: 'rgba(245,158,11,0.05)', point: '#f59e0b' },
+            'Execution Drag': { border: '#a78bfa', bg: 'rgba(167,139,250,0.05)', point: '#a78bfa' },
+        };
+
+        var datasets = (data.datasets || []).map(function(ds) {
+            var c = colors[ds.label] || { border: '#7dd3fc', bg: 'rgba(125,211,252,0.1)', point: '#7dd3fc' };
+            return {
+                label: ds.label,
+                data: ds.data || [],
+                borderColor: c.border,
+                backgroundColor: ds.fill !== false ? c.bg : 'transparent',
+                pointBackgroundColor: c.point,
+                pointBorderColor: c.point,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: ds.fill !== false,
+                tension: ds.tension || 0.34,
+                borderWidth: 2,
+            };
+        });
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels: data.labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#9aa0a6',
+                            font: { family: 'Inter', size: 11 },
+                            boxWidth: 12,
+                            padding: 16,
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a1d27',
+                        titleColor: '#e8eaed',
+                        bodyColor: '#9aa0a6',
+                        borderColor: '#2a2e3a',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        boxPadding: 4,
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+                        ticks: { color: '#6b7280', font: { family: 'Inter', size: 10 } },
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+                        ticks: { color: '#6b7280', font: { family: 'Inter', size: 10 } },
+                        beginAtZero: true,
+                    },
+                },
+            },
+        });
+    }
+
+    /* ── Smooth Transitions on HTMX Swaps ── */
+    document.addEventListener('htmx:beforeSwap', function(evt) {
+        // Add fade-in class to swapped content
+        var target = evt.detail.target;
+        if (target && !target.classList.contains('fade-in')) {
+            target.classList.add('fade-in');
+        }
+        // Clear existing animation to restart it
+        target.style.animation = 'none';
+        target.offsetHeight; // trigger reflow
+        target.style.animation = '';
+    });
+
+    /* ── Connect dashboard SSE on page load ── */
+    document.addEventListener('DOMContentLoaded', function() {
+        connectDashboardSSE();
+    });
+
+    /* ── Chart data via HTMX afterSwap (for chart container JS updates) ── */
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'chart-container') {
+            const chartDataEl = evt.detail.target.querySelector('script[data-chart]');
+            if (chartDataEl) {
+                try {
+                    renderChart(JSON.parse(chartDataEl.textContent));
+                } catch(e) {
+                    // ignore
+                }
+            }
+        }
+    });
+
+    /* ── Hash-based routing for panel focus ── */
+    function handleHash() {
+        var hash = window.location.hash;
+        if (!hash) return;
+        var target = document.getElementById(hash.substring(1) + '-container') ||
+                     document.getElementById(hash.substring(1));
+        if (target) {
+            setTimeout(function() {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                target.style.boxShadow = '0 0 0 2px rgba(125,211,252,0.2)';
+                setTimeout(function() {
+                    target.style.boxShadow = '';
+                }, 2000);
+            }, 100);
+        }
+    }
+
+    window.addEventListener('hashchange', handleHash);
+
+    /* ── Hamburger Mobile Navigation ── */
+    var hamburgerBtn = document.getElementById('hamburger-btn');
+    var slideNav = document.getElementById('slide-nav');
+    var navOverlay = document.getElementById('mobile-nav-overlay');
+    var navCloseBtn = document.getElementById('nav-close-btn');
+
+    function openNav() {
+        if (slideNav) slideNav.classList.remove('-translate-x-full');
+        if (navOverlay) navOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeNav() {
+        if (slideNav) slideNav.classList.add('-translate-x-full');
+        if (navOverlay) navOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', openNav);
+    if (navCloseBtn) navCloseBtn.addEventListener('click', closeNav);
+    if (navOverlay) navOverlay.addEventListener('click', closeNav);
+
+    // Slide nav links — smooth scroll and close nav
+    document.querySelectorAll('.nav-slide-link').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var section = btn.getAttribute('data-section');
+            closeNav();
+            setTimeout(function() {
+                var targetEl = document.getElementById(section + '-container') ||
+                               document.getElementById(section);
+                if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // flash highlight
+                    targetEl.style.boxShadow = '0 0 0 2px rgba(125,211,252,0.2)';
+                    setTimeout(function() {
+                        targetEl.style.boxShadow = '';
+                    }, 2000);
+                }
+            }, 350);
+        });
+    });
+
+    /* ── Collapsible Sections (Mobile Only) ── */
+    function initCollapsibleSections() {
+        document.querySelectorAll('.collapse-toggle').forEach(function(toggle) {
+            // Remove old listener to avoid duplicates
+            var newToggle = toggle.cloneNode(true);
+            toggle.parentNode.replaceChild(newToggle, toggle);
+            newToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var targetId = newToggle.getAttribute('data-target');
+                var section = document.getElementById(targetId);
+                if (!section) return;
+                var content = section.querySelector('.collapse-content');
+                var chevron = newToggle.querySelector('.chevron-icon');
+                if (!content) return;
+
+                content.classList.toggle('collapsed');
+                if (chevron) chevron.classList.toggle('rotated');
+
+                // Save state to localStorage
+                try {
+                    var stateKey = 'tg_collapse_' + targetId;
+                    var isCollapsed = content.classList.contains('collapsed');
+                    if (isCollapsed) {
+                        localStorage.setItem(stateKey, '1');
+                    } else {
+                        localStorage.removeItem(stateKey);
+                    }
+                } catch(e) {}
+            });
+
+            // Restore saved state
+            try {
+                var stateKey = 'tg_collapse_' + targetId;
+                if (localStorage.getItem(stateKey) === '1') {
+                    var content = document.getElementById(targetId)?.querySelector('.collapse-content');
+                    var chevron = newToggle.querySelector('.chevron-icon');
+                    if (content) {
+                        content.classList.add('collapsed');
+                        if (chevron) chevron.classList.add('rotated');
+                    }
+                }
+            } catch(e) {}
+        });
+    }
+
+    // Re-init collapsible after HTMX swaps
+    document.addEventListener('htmx:afterSwap', function() {
+        setTimeout(initCollapsibleSections, 50);
+    });
+
+    /* ── Tooltip touch support for mobile ── */
+    document.querySelectorAll('.tooltip-trigger').forEach(function(el) {
+        el.addEventListener('touchstart', function(e) {
+            // On mobile, prevent other tooltips from staying visible
+            document.querySelectorAll('.tooltip-trigger.show-tooltip').forEach(function(t) {
+                if (t !== el) t.classList.remove('show-tooltip');
+            });
+            el.classList.toggle('show-tooltip');
+            e.preventDefault();
+        });
+        // Hide tooltip when tapping elsewhere
+        document.addEventListener('touchstart', function(ev) {
+            if (!el.contains(ev.target)) {
+                el.classList.remove('show-tooltip');
+            }
+        }, { passive: true });
+    });
+
+    // Add CSS for touch tooltip (since ::after can't be toggled by class on parent easily)
+    var tooltipStyle = document.createElement('style');
+    tooltipStyle.textContent = '.tooltip-trigger.show-tooltip::after { opacity: 1 !important; }';
+    document.head.appendChild(tooltipStyle);
+
+    /* ── Initial setup on DOMContentLoaded ── */
+    document.addEventListener('DOMContentLoaded', function() {
+        handleHash();
+        initCollapsibleSections();
+    });
+
+})();
+</script>
+
 </body>
 </html>

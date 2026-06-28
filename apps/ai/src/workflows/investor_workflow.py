@@ -131,8 +131,7 @@ class InvestorWorkflow:
 
             slack_result = await workflow.execute_activity(
                 send_slack_message,
-                narrative,
-                blocks=slack_blocks if slack_blocks else None,
+                args=[narrative, slack_blocks] if slack_blocks else [narrative],
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=2),
             )

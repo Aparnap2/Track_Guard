@@ -70,7 +70,7 @@ def _set_env():
         "OPENROUTER_EMBED_MODEL": os.environ.get("OPENROUTER_EMBED_MODEL"),
     }
     os.environ.setdefault("GROQ_API_KEY", "gsk_test_key")
-    os.environ.setdefault("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+    os.environ.setdefault("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
     os.environ.setdefault("OPENROUTER_EMBED_MODEL", "nvidia/llama-nemotron-embed-vl-1b-v2:free")
     yield
     for key, value in originals.items():
@@ -200,9 +200,9 @@ class TestToolCalls:
     def test_get_chat_model_uses_groq_model(self):
         """Test get_chat_model returns GROQ_CHAT_MODEL when Groq configured."""
         os.environ["GROQ_API_KEY"] = "gsk_test"
-        os.environ["GROQ_CHAT_MODEL"] = "qwen/qwen3-32b"
+        os.environ["GROQ_CHAT_MODEL"] = "llama-3.3-70b-versatile"
         model = get_chat_model()
-        assert model == "qwen/qwen3-32b"
+        assert model == "llama-3.3-70b-versatile"
 
     def test_get_embedding_model_uses_openrouter(self):
         """Test get_embedding_model returns OpenRouter embed model."""

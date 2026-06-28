@@ -146,7 +146,7 @@ class OpsWatchGraph:
     async def _decide_alert(self, mission_context: dict):
         """Phase 2: One small LLM call with Pydantic output."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             snapshot_json = json.dumps(self.state.ops_snapshot, default=str)
 
             prompt = (
@@ -192,7 +192,7 @@ class OpsWatchGraph:
     async def _generate_narrative(self):
         """Phase 3: Bounded narrative generation (max 200 words)."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             decision = self.state.alert_decision
             snapshot_json = json.dumps(self.state.ops_snapshot, default=str)
 
@@ -286,3 +286,35 @@ class OpsWatchGraph:
                 "latency_ms": latency_ms,
                 "error": str(e),
             }
+
+
+@dataclass
+class OpsGraph:
+    """Ops specialist agent — handles operations, hiring, vendor management, compliance, SOPs.
+
+    This is a lightweight Q&A agent for @ops mentions, distinct from the
+    OpsWatchGraph which is a full ops monitoring pipeline.
+    """
+
+    system_prompt: str = (
+        "You are a startup operations specialist. Answer questions about hiring, "
+        "vendor management, compliance, SOPs, people ops, and operational workflows. "
+        "Provide actionable advice with clear next steps."
+    )
+
+    async def invoke(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Answer an operations question via LLM."""
+        from src.config.llm import chat_completion
+
+        question = input_data.get("question", "")
+        tenant_id = input_data.get("tenant_id", "default")
+
+        response = await chat_completion(
+            messages=[
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": question},
+            ],
+            tenant_id=tenant_id,
+        )
+
+        return {"answer": response, "output_message": response, "agent_type": "ops"}

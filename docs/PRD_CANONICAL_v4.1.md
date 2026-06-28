@@ -2,7 +2,53 @@
 
 **Version:** 4.1  
 **Date:** March 2026  
-**Status:** Single Source of Truth
+**Status:** Product Vision — Current Implementation Status Below
+
+---
+
+## ⚠️ CURRENT IMPLEMENTATION STATUS
+
+**This document is the aspirational product vision (v4.1).** The parts marked `[BUILT]` below have been implemented in the current codebase (as of June 2026). Sections marked `[PLANNED]` are future scope.
+
+### What Is Actually Built (V4.0 as of June 2026)
+
+| Component | Status | Implementation |
+|-----------|--------|----------------|
+| **Command Center Dashboard** | ✅ [BUILT] | 13+ HTMX panels (Chat, Approvals, MissionState, KPIs, etc.) |
+| **SSE Chat with @mentions** | ✅ [BUILT] | `hx-ext="sse"` + goroutine Temporal dispatch |
+| **Specialist Agents** | ✅ [BUILT] | Finance, Data, Ops, Comms, Hiring, QA (LangGraph + Temporal) |
+| **HITL Temporal Signals** | ✅ [BUILT] | `SignalWorkflow("hitl-approval")` unblocks workflows |
+| **MissionState Write Path** | ✅ [BUILT] | Python AI → POST → PostgreSQL → GET → Dashboard |
+| **Map-based @mention Routing** | ✅ [BUILT] | `map[string]specialistRoute`, 9 aliases → 6 workflows |
+| **Server-rendered Chat Bubbles** | ✅ [BUILT] | `renderChatBubble()` with `html.EscapeString()` |
+| **Go Core (Fiber + Temporal)** | ✅ [BUILT] | HTTP server, Temporal dispatch, SSE streaming |
+| **Python AI Worker** | ✅ [BUILT] | Temporal worker, LangGraph agents, Pydantic outputs |
+| **LLM Integration** | ✅ [BUILT] | Azure AI Foundry / Groq / Ollama via OpenAI SDK |
+| **319 Python + 52 Go Tests** | ✅ [BUILT] | Suite passing, Go build clean |
+
+### What Is Not Yet Built (Aspirational per v4.1 Vision)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Telegram Bot** | ❌ [PLANNED] | Current UI is HTMX web (not Telegram) |
+| **Neo4j/Graphiti** | ❌ [PLANNED] | Not deployed; PostgreSQL + Qdrant used for memory |
+| **Crawl4AI / Market Intel** | ❌ [PLANNED] | Not built; external web crawling not implemented |
+| **Bank Statement Parser** | ❌ [PLANNED] | Not built; data ingestion pipeline not implemented |
+| **Finance Ops / Accounting Ops** | ❌ [PLANNED] | Not built; only Finance analysis agent exists |
+| **Legal Ops / HR Ops / Admin Ops** | ❌ [PLANNED] | Not built |
+| **Jurisdiction / Tax / Grant Agents** | ❌ [PLANNED] | Not built |
+| **Cap Table / Procurement Agents** | ❌ [PLANNED] | Not built |
+| **Real Docker + Real LLM Testing** | ❌ [PLANNED] | Tests use mocked APIs (respx/polyfactory) |
+| **BizOS Workflow (Continue-As-New)** | ❌ [PLANNED] | Not implemented |
+| **First Real Founder Onboarding** | ❌ [PLANNED] | Pre-seed / alpha stage |
+
+> **For current implementation status, see:**
+> - [README.md](./README.md) — Project overview, architecture, test counts
+> - [PRD.md](./PRD.md) — Detailed V4.0 implementation status
+> - [ADR-001](../.opencode/context/adr/001-sarthi-v4-architecture-evolution.md) — Architecture decisions
+> - [AGENTS.md](./AGENTS.md) — Development guidelines and project structure
+
+---
 
 ---
 
@@ -95,7 +141,7 @@ Sarthi detects which laws apply based on company incorporation profile at onboar
 
 ## 5. The Interface
 
-### Primary: Telegram Bot
+### Primary: Telegram Bot [PLANNED — Current UI is HTMX web]
 
 Free, no per-message cost, async, file-capable, inline keyboards for HITL approvals. Works globally.
 
@@ -159,7 +205,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
            crawls external intelligence.
 ```
 
-### Tier 1: Chief of Staff
+### Tier 1: Chief of Staff [PLANNED]
 
 - **LangGraph graph:** `chief_of_staff_agent.py`
 - **DSPy signatures:** ToneFilter, RouteClassifier
@@ -179,7 +225,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 
 ### Tier 2: Intelligence Agents
 
-#### CFO Agent
+#### CFO Agent [PLANNED — Finance specialist (FinanceGraph) exists but is simpler]
 - 13-week rolling cash flow forecast
 - Burn rate + runway (alert < 90 days)
 - Burn spike detection (> 20% MoM)
@@ -188,7 +234,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - Scenario modeling ("what if I hire?")
 - **Integrations:** Zoho Books, QuickBooks, Razorpay, Bank parser
 
-#### BI Agent
+#### BI Agent [PLANNED — Data specialist (DataGraph) is the closest analog]
 - Customer cohort analysis (retention/churn)
 - Revenue concentration risk (single customer > 30%)
 - Product usage vs revenue contribution
@@ -196,7 +242,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - Growth lever identification
 - Cross-source pattern correlation
 
-#### Risk & Compliance Agent
+#### Risk & Compliance Agent [PLANNED]
 - GST, TDS, Advance Tax deadlines
 - PF, ESIC, PT compliance calendar
 - Contract expiry tracking
@@ -206,7 +252,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - Regulatory changes in sector
 - **Rule:** ANY deadline within 14 days fires. Hard.
 
-#### Market Intelligence Agent
+#### Market Intelligence Agent [PLANNED]
 - **Tools:** Crawl4AI (Docker, $0) + Firecrawl (free tier)
 - **Watches:**
   - **REGULATORY:** SEC/SEBI/FCA/MCA/GDPR/DPDP filings per jurisdiction
@@ -216,26 +262,26 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
   - **POLICY:** Tax law changes that affect THIS company specifically
 - **Output contract:** NOT a newsletter. NOT a summary. One signal. One opportunity or risk. One action. Fires ONLY when something is actionable.
 
-#### Fundraise Readiness Agent [NEW — v4.1]
+#### Fundraise Readiness Agent [NEW — v4.1] [PLANNED]
 - Data room scoring and gap detection
 - Investor-ready P&L narrative generation
 - Diligence question anticipation
 - Cap table cleanliness check
 
-#### Tax Intelligence Agent [NEW — v4.1]
+#### Tax Intelligence Agent [NEW — v4.1] [PLANNED]
 - R&D credit eligibility detection (global)
 - QSBS status monitoring (US)
 - DPIIT Startup India recognition (India)
 - Jurisdiction-specific tax opportunity detection
 
-#### Grant & Credit Agent [NEW — v4.1]
+#### Grant & Credit Agent [NEW — v4.1] [PLANNED]
 - SBIR/STTR eligibility (US)
 - Innovate UK eligibility
 - DPIIT Startup India recognition
 - Horizon Europe eligibility (EU)
 - Application drafting from company context
 
-### Tier 3: Operations Agents
+### Tier 3: Operations Agents [ALL PLANNED — No execution agents implemented yet]
 
 #### Finance Ops Agent
 - Auto-categorizes every bank transaction
@@ -305,7 +351,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - Eligibility evidence compilation
 - Status tracking and follow-up
 
-### Tier 4: Data Layer
+### Tier 4: Data Layer [ALL PLANNED — Ingestion pipeline not built]
 
 #### Ingestion Agent
 - **CSV/Excel:** pandas + openpyxl (Bank detection: HDFC/ICICI/SBI/Axis/Kotak)
@@ -316,7 +362,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - All normalised → standard transaction schema
 - PostgreSQL write + Qdrant embed + Neo4j episode
 
-#### Memory Agent (Qdrant — semantic)
+#### Memory Agent (Qdrant — semantic) [BUILT — src/memory/ exists with Qdrant integration]
 - Manages Qdrant collection: `sarthi-founder-memory`
 - Embeddings: text-embedding-3-small (1536d)
 - Founder isolation enforced at filter level
@@ -324,7 +370,7 @@ TIER 4  ── DATA LAYER (invisible — founder never interacts)
 - Stale memory compression after 90 days
 - Pattern detection: archetype classification
 
-#### Graph Memory Agent (Neo4j + Graphiti — relational)
+#### Graph Memory Agent (Neo4j + Graphiti — relational) [PLANNED — Not deployed; using simpler memory patterns]
 - Temporal knowledge graph via Graphiti (Zep)
 - Every reflection, commitment, signal, decision is an episode
 - Answers questions Qdrant cannot:
@@ -689,9 +735,10 @@ class GrantFinding(BaseModel):  # NEW v4.1
 
 ---
 
-## 14. Testing Architecture
+## 14. Testing Architecture [PLANNED — Current tests use mocked APIs]
 
-**PRINCIPLE:** Real Docker. Real LLM. No mocks. Always.
+**PRINCIPLE:** Real Docker. Real LLM. No mocks. Always.  
+**CURRENT REALITY:** Tests use `respx` (httpx mocking), `polyfactory` (fixtures), and `unittest.mock.patch`. Real Docker/LLM testing is planned for future phases.
 
 | Layer | Tool | What Is Tested |
 |-------|------|---------------|

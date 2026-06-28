@@ -13,7 +13,7 @@ import (
 
 func TestBusinessDecisionQueue_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/decision-queue", h.APIBusinessDecisionQueue)
 
@@ -34,7 +34,7 @@ func TestBusinessDecisionQueue_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestBusinessDecisionQueue_ShowsPendingDecisions(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/decision-queue", h.APIBusinessDecisionQueue)
 
@@ -61,7 +61,7 @@ func TestBusinessDecisionQueue_ShowsEmptyState(t *testing.T) {
 
 func TestBusinessDecisionQueue_ApproveButtonExists(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/decision-queue", h.APIBusinessDecisionQueue)
 
@@ -81,7 +81,7 @@ func TestBusinessDecisionQueue_ApproveButtonExists(t *testing.T) {
 
 func TestGuardrailStatus_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/guardrail-status", h.APIGuardrailStatus)
 
@@ -102,7 +102,7 @@ func TestGuardrailStatus_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestGuardrailStatus_ShowsAllFourGuardrails(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/guardrail-status", h.APIGuardrailStatus)
 
@@ -140,7 +140,7 @@ func TestGuardrailStatus_ShowsActiveBlocks(t *testing.T) {
 
 func TestFinanceRisk_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/finance-risk", h.APIFinanceRisk)
 
@@ -161,7 +161,7 @@ func TestFinanceRisk_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestFinanceRisk_ShowsAllFourMetrics(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Get("/api/business/finance-risk", h.APIFinanceRisk)
 
@@ -205,7 +205,7 @@ func TestFinanceRisk_ShowsLastUpdated(t *testing.T) {
 
 func TestBusinessDecisionApprove_ReturnsEmptyOnHTMX(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Post("/api/business/decisions/:id/approve", h.APIBusinessDecisionApprove)
 
@@ -221,7 +221,7 @@ func TestBusinessDecisionApprove_ReturnsEmptyOnHTMX(t *testing.T) {
 
 func TestBusinessDecisionReject_ReturnsEmptyOnHTMX(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	app.Post("/api/business/decisions/:id/reject", h.APIBusinessDecisionReject)
 

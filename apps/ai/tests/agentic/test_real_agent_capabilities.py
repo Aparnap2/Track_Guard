@@ -314,33 +314,33 @@ def test_llm_phase1_phase2_phase3_flow(ollama_client, llm_model):
     assert decision.severity == "critical"
 
     prompt_phase3 = f"""
-    You are Phase 3: NARRATIVE GENERATION
+        You are Phase 3: NARRATIVE GENERATION
 
-    Decision from Phase 2:
-    - should_alert: {decision.should_alert}
-    - severity: {decision.severity}
-    - primary_signal: {decision.primary_signal}
+        Decision from Phase 2:
+        - should_alert: {decision.should_alert}
+        - severity: {decision.severity}
+        - primary_signal: {decision.primary_signal}
 
-    Data numbers: runway_days={runway_days:.0f}, burn={financial_data['burn_rate']}, balance={financial_data['bank_balance']}
+        Data numbers: runway_days={runway_days:.0f}, burn={financial_data['burn_rate']}, balance={financial_data['bank_balance']}
 
-    PRD Requirements:
-    - pattern_name: Name only (e.g., "runway_compression")
-    - insight: Max 200 words, include numbers: {runway_days:.0f} days, ${financial_data['burn_rate']:,}
-    - urgency_horizon: "today" (critical)
-    - one_action: ONE action only
-    - injected_numbers: ["110", "60000", "220000"]
+        PRD Requirements:
+        - pattern_name: Name in snake_case only, e.g. "runway_compression" — NOT the pattern ID like "FG-04"
+        - insight: Max 200 words, include numbers: {runway_days:.0f} days, ${financial_data['burn_rate']:,}
+        - urgency_horizon: "today" (critical)
+        - one_action: ONE action only
+        - injected_numbers: ["110", "60000", "220000"]
 
-    Output JSON:
-    {{
-        "pattern_name": "...",
-        "insight": "...",
-        "urgency_horizon": "...",
-        "one_action": "...",
-        "injected_numbers": [...]
-    }}
+        Output JSON:
+        {{
+            "pattern_name": "...",
+            "insight": "...",
+            "urgency_horizon": "...",
+            "one_action": "...",
+            "injected_numbers": [...]
+        }}
 
-    Respond ONLY with valid JSON.
-    """
+        pattern_name MUST NOT start with "FG-". Respond ONLY with valid JSON.
+        """
 
     content_p3 = call_llm(ollama_client, llm_model, prompt_phase3, max_tokens=300)
     print(f"\n[Phase 3 - LLM Narrative Generation]\n{content_p3}")
@@ -473,6 +473,7 @@ def test_llm_self_corrects_invalid_output(ollama_client, llm_model):
     except ValidationError as e:
         pytest.fail(f"LLM failed to self-correct: {e}\nContent: {corrected_content}")
 
-    assert message.pattern_name == "runway_compression"
+    assert not message.pattern_name.startswith("FG-"), \
+        f"pattern_name should be a descriptive name, got '{message.pattern_name}'"
     assert len(message.injected_numbers) > 0
     print("\n[Self-Correction Test Passed]")

@@ -1,227 +1,205 @@
-# TrackGuard — Decision Intelligence for Seed-Stage Founders
+# Sarthi — AI Coordination Layer for Solo Founders
 
-> An operational decision intelligence system architected with deterministic agents, real-time health monitoring, and multi-domain alerting.
-> Not a chatbot — a trusted multi-agent council that observes, analyzes, decides, and learns.
+> Server-rendered command center with SSE push, goroutine-based Temporal dispatch, and Python specialist agents.
+> Chat → @mention → specialist workflow → SSE result — all driven by Go + Temporal + LangGraph.
 
-[![Tests](https://img.shields.io/badge/tests-394%20passing-brightgreen)](#)
-[![Architecture](https://img.shields.io/badge/architecture-Guardian%20council-blue)](#)
-[![Trust](https://img.shields.io/badge/trust-Profiled%20%2B%20Gated-orange)](#)
-[![MBA](https://img.shields.io/badge/MBA-Finance%20%2B%20Guardrails%20%2B%20Forecasts-red)](#)
+[![Tests](https://img.shields.io/badge/tests-371%20passing-brightgreen)](#)
+[![Architecture](https://img.shields.io/badge/architecture-SSE%20%2B%20Specialist-blue)](#)
+[![Go](https://img.shields.io/badge/Go-1.24-blue?logo=go)](#)
+[![Python](https://img.shields.io/badge/Python-3.13-green?logo=python)](#)
 
 ---
 
-## The Architecture: A Digital Guardian Council
+## The Architecture: SSE-First Command Center
 
-Each agent is a specialized decision-maker with bounded authority, durable memory, and explicit trust governance.
+Browser connects via HTMX SSE. Go dispatches to Temporal in goroutines. Python specialist agents handle each domain.
 
-```text
-                     ┌─────────────────────────┐
-                     │  FOUNDER (Feedback Loop) │
-                     │  Final authority for     │
-                     │  irreversible decisions  │
-                     └──────┬─────────────────┘
-                            │
-               ┌────────────┼────────────┐
-               │            │            │
-      ┌────────▼──┐  ┌─────▼──────┐  ┌──▼──────────┐
-      │ ALERT GATE│  │  COUNCIL   │  │ CONFLICT    │
-      │ 7-stage   │  │  AlertCouncil│  │ RESOLVER   │
-      │ quality   │  │  synthesis │  │ Agent       │
-      │ + business│  │  + priority│  │ Arbiter     │
-      │ guardrails│  │  + recommend│  │             │
-      └───────────┘  └─────┬──────┘  └─────────────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-   ┌──────▼─────┐  ┌──────▼──────┐  ┌──────▼──────┐
-   │  FINANCE   │  │  BI ANALYST│  │  OPS WATCH  │
-   │  Guardian  │  │  (leading  │  │  (operational│
-   │  + Finance │  │  indicators)│  │  heartbeat) │
-   │  Rules Engine│  │            │  │            │
-   └──────┬─────┘  └──────┬──────┘  └──────┬──────┘
-          │                │                │
-          └────────────────┼────────────────┘
-                           │
-               ┌───────────▼───────────┐
-               │   BUSINESS PIPELINE   │
-               │  Finance Rules →      │
-               │  Guardrails → HITL →  │
-               │  MissionState → Slack │
-               └───────────┬───────────┘
-                           │
-               ┌───────────▼───────────┐
-               │   PREDICTIVE GUARDIAN │
-               │  Trend extrapolation  │
-               │  Runway projection    │
-               │  Churn acceleration   │
-               │  Threshold alerts     │
-               └───────────┬───────────┘
-                           │
-               ┌───────────▼───────────┐
-               │   ANOMALY DETECTOR    │
-               │  Cross-domain anomaly │
-               │  inconsistency check  │
-               │  — wandering scout    │
-               └──────────────────────┘
-                           │
-               ┌───────────▼───────────┐
-               │   MISSION STATE +     │
-               │   ALERT DISPATCH      │
-               │  Treasury (Kosha) +   │
-               │  Enforcement (Danda)  │
-               └──────────────────────┘
-                           │
-               ┌───────────▼───────────┐
-               │   KNOWLEDGE GRAPH     │
-               │  Graphiti temporal    │
-               │  institutional memory │
-               │  — connection (Mitra) │
-               └──────────────────────┘
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Browser (HTMX + SSE)                            │
+│  ┌──────────────────────────┐    ┌───────────────────────────────┐          │
+│  │  command_chat.html        │    │  command_approvals.html       │          │
+│  │  hx-ext="sse"             │    │  Approve / Hold buttons      │          │
+│  │  sse-connect="/api/...    │    │  → Temporal Signal           │          │
+│  └──────────┬────────────────┘    └───────────┬───────────────────┘          │
+│             │ SSE event:chat                   │ POST approve/hold            │
+└─────────────┼──────────────────────────────────┼─────────────────────────────┘
+              │                                  │
+              ▼                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Go Core (Fiber v2)                                   │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │  Handler struct                                                        │   │
+│  │  ┌─────────────┐  ┌───────────────┐  ┌──────────────┐                 │   │
+│  │  │ chatBroadcast│  │ temporal      │  │ wg sync.     │                 │   │
+│  │  │ chan fiber.Map│ │ *temporal.Client│ │ WaitGroup     │                 │   │
+│  │  └──────┬──────┘  └───────┬───────┘  └──────────────┘                 │   │
+│  │         │                 │                                            │   │
+│  │  ┌──────▼──────┐  ┌──────▼───────┐                                    │   │
+│  │  │ SSE endpoint │  │ specialist-  │                                    │   │
+│  │  │ SetBodyStream│  │ Routes map   │                                    │   │
+│  │  │ Writer       │  │ @mention→Wkfl│                                    │   │
+│  │  │ renderChat-  │  │ + displayName│                                    │   │
+│  │  │ Bubble()     │  └──────┬───────┘                                    │   │
+│  │  └──────────────┘         │                                            │   │
+│  │                           │ goroutine dispatch + tryBroadcast()        │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │  API Routes                                                           │   │
+│  │  GET  /api/command/chat/events  → SSE stream (chat bubbles)          │   │
+│  │  POST /api/command/chat/send    → goroutine + Temporal dispatch      │   │
+│  │  POST /api/command/approvals/:id/approve → SignalWorkflow("hitl...") │   │
+│  │  POST /api/command/approvals/:id/hold   → DB update                  │   │
+│  │  GET  /api/mission-state        → read from PostgreSQL               │   │
+│  │  POST /api/mission-state        → write from Python AI               │   │
+│  │  GET  /api/command/*            → dashboard partials (status, KPIs,  │   │
+│  │                                    watchlist, timeline, approvals,   │   │
+│  │                                    agent fleet, chart-data)           │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+              │ Temporal                         │ SQL / POST
+              ▼                                  ▼
+┌─────────────────────────────┐    ┌──────────────────────────────────────────┐
+│  Temporal Server             │    │  PostgreSQL                                │
+│  Task Queue:                 │    │  Tables:                                   │
+│  TRACKGUARD-MAIN-QUEUE       │    │  - mission_state (Python AI writes)       │
+│                              │    │  - planned_actions (HITL approval queue)  │
+│  Workflows:                  │    │  - chat_messages (conversation history)   │
+│  QAWorkflow                  │    │  - agent_traces (duration, tokens, cost)  │
+│  FinanceWorkflow             │    │  - agent_events (SSE polling source)      │
+│  DataWorkflow                │    │                                           │
+│  OpsWorkflow                 │    └──────────────────────────────────────────┘
+│  CommsWorkflow               │
+│  HiringWorkflow              │
+│                              │
+│  Signals: "hitl-approval"    │
+└──────┬──────────────────────┘
+       │ Temporal activity dispatch
+       ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    Python AI Worker (Temporal SDK + LangGraph)                 │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐    │
+│  │  Temporal Workflow Definitions                                       │    │
+│  │  FinanceWorkflow · DataWorkflow · OpsWorkflow · QAWorkflow           │    │
+│  │  CommsWorkflow · HiringWorkflow                                      │    │
+│  └──────────────────────────────────────────────────────────────────────┘    │
+│                                    │                                         │
+│  ┌──────────────────────────────────────────────────────────────────────┐    │
+│  │  LangGraph Agent Graphs                                               │    │
+│  │  FinanceGraph · DataGraph · OpsGraph · CommsGraph · HiringGraph       │    │
+│  │                                    │                                   │    │
+│  │  LLM Provider: Azure AI Foundry / Groq / Ollama (auto-detected)       │    │
+│  │  Structured Output: instructor + Pydantic v2 (strict mode)            │    │
+│  └──────────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**New in V4: MBA Integration Layer.** Three new deterministic layers sit between the guardians and the founder:
-- **Finance Rules** — 17 detection functions + 7 MBA primitives (WACC, NPV, IRR, burn multiple, etc.)
-- **Guardrails Engine** — 7-stage policy evaluation (investor-facing, authority, reversibility, risk, privacy, approval tier, blocking)
-- **Predictive Guardian** — trend forecasting, runway depletion projection, churn acceleration detection
+### Chat Flow: @mention → Specialist Workflow → SSE Result
+
+```
+User types "@finance Q3 revenue?" → HTMX POST /api/command/chat/send
+  → Go Handler extracts @mentions → matches in specialistRoutes map
+  → Broadcasts user bubble via SSE (immediate)
+  → go func() with sync.WaitGroup:
+      → tryBroadcast() → "🤔 Thinking..." → SSE
+      → Temporal ExecuteWorkflow("FinanceWorkflow", input)
+      → Python workflow → LangGraph agent → LLM result
+      → run.Get(ctx, &result) → renderChatBubble() → tryBroadcast() → SSE
+```
+
+### Key V4.0 Decisions (ADR-001)
+
+| Decision | Benefit |
+|----------|---------|
+| **HTMX SSE** over WebSocket/Raw JS | ~40 fewer lines of JS. Auto-reconnect built-in. Server owns HTML rendering via `renderChatBubble()`. |
+| **Goroutine dispatch** over synchronous `run.Get()` | No more 60s HTTP timeouts. "🤔 Thinking..." appears immediately. `sync.WaitGroup` for graceful shutdown. |
+| **Map-based specialist routing** over if-else chain | `map[string]specialistRoute` — O(1) lookup. Adding a specialist = 1 map entry + 1 Python class. |
+| **Temporal Signal for HITL** | Approval buttons actually unblock `AwaitWithTimeout` gates. End-to-end HITL. |
+| **Server-rendered chat bubbles** | `html.EscapeString()` XSS protection. Agent color classes. Single source of truth for HTML. |
+| **MissionState POST endpoint** | Python AI → POST → PostgreSQL → GET → Dashboard. Pure server-side rendered. |
+| **Remove dead stubs** | Cleaned 40 lines of stale placeholder types from `workflow/stubs.go`. |
+
+> Full details: [ADR-001: Sarthi v4.0 Architecture Evolution](.opencode/context/adr/001-sarthi-v4-architecture-evolution.md)
 
 ---
 
-## MBA Integration Layer
+## Command Center Dashboard
 
-### Finance Rules (`business/finance_rules.py`)
-17 detection functions extracted from guardian watchlist lambdas + 7 MBA finance primitives. Pure Python, zero LLM calls.
+13+ HTMX-driven screens in the command center:
 
-**Detections:** silent churn death, burn multiple creep, customer concentration risk, runway compression, failed payment clusters, payroll/revenue breach, leaky bucket activation, power user MRR masking, feature adoption drop, cohort retention degradation, NRR < 100%, trial activation wall, error segment correlation, support outpacing growth, cross-channel bug convergence, deploy frequency collapse, infra unit economics divergence.
+| Dashboard Panel | Route | Auto-refresh |
+|-----------------|-------|-------------|
+| **Chat Panel** | `POST /api/command/chat/send` + SSE `GET /api/command/chat/events` | SSE push (instant) |
+| **Approvals Queue** | `GET /api/command/approvals` + `POST approve/:id` | Poll + Signal |
+| **Mission State** | `GET /api/command/mission-state` | On load |
+| **Status Bar** | `GET /api/command/status` | 10s |
+| **KPI Cards** | `GET /api/command/kpis` | 15s |
+| **Watchlist** | `GET /api/command/watchlist` | 30s |
+| **Timeline** | `GET /api/command/timeline` | 15s |
+| **Agent Fleet** | `GET /api/command/agent-fleet` | 30s |
+| **Chart Data** | `GET /api/command/chart-data` (JSON) | On demand |
+| **Dashboard Heartbeat** | `GET /api/command/events` (SSE) | Push |
 
-**MBA Primitives:** `compute_burn_multiple`, `compute_runway_days`, `compute_effective_runway_days`, `compute_npv`, `compute_irr`, `compute_wacc`, `compute_working_capital_pressure`.
+### Specialist Route Map
 
-### Business Decision Envelope (`business/envelope.py`)
-Canonical typed contract composing 5 existing schemas (`EventEnvelope`, `AlertDecision`, `GuardianMessage`, `DecisionResult`, `AlertEvidenceChain`) with `FinancialSnapshot` + `GuardrailResult`. Composition, not inheritance — zero source file modifications.
-
-### Guardrails Engine (`business/guardrails.py`)
-7-stage deterministic policy evaluation — no LLM calls:
-1. **Investor-facing** — flag decisions visible to investors
-2. **Authority** — map severity to approval tier (auto/review/blocking)
-3. **Reversibility** — detect irreversible decisions (payouts, contracts, public comms)
-4. **Risk classification** — financial / legal / reputational / operational
-5. **Privacy** — PII detection via regex
-6. **Approval tier final** — deterministic tier assignment
-7. **Blocking override** — block when multiple critical conditions met
-
-### Alert Quality Gate — Extended (`services/alert_gate.py`)
-Expanded from 4 to 7 stages: schema → trust → dedup → tone → **authority** → **risk** → **privacy**.
-
-### Trust Battery — Extended (`services/trust_battery.py`)
-4 new guardrail fields added to `AgentTrustProfile`: `authority_limit`, `max_auto_approve_severity`, `investor_update_requires_approval`, `irreversible_decision_threshold`.
-
-### Business Pipeline (`orchestration/run_business_pipeline.py`)
-Chains 7 stages: finance rules → envelope → guardrails → HITL routing → MissionState update → events → Slack alert. Wrapped as Temporal activities.
-
-### Predictive Guardian (`predictive/engine.py`)
-10 pure forecasting functions using standard library only (math, statistics):
-- **Linear trend** — OLS regression for any metric
-- **Predict next** — single/multi-step forecast via trend extrapolation
-- **Days to threshold** — when will a metric breach a critical value
-- **Moving average** — sliding window smoother
-- **Confidence intervals** — normal approximation bounds
-- **Volatility** — coefficient of variation
-- **Runway depletion** — trend-adjusted cash runway projection
-- **Churn acceleration** — detects if churn rate is accelerating
-- **Forecast summary** — complete metric forecast with trend, CI, volatility
-
-### Startup Guardian (SG) — Deterministic Founder Council
-Synchronous snapshot engine that queries ERPNext, HubSpot, and QuickBooks → assembles MissionStateV2 (Support, Execution, Team, Finance, Revenue) → runs 8 watchlists + 5 cross-domain correlations → computes overall health.
-
-**Connectors:**
-- **ERPNext** — `src/integrations/erpnext_client.py` (pure-stdlib Frappe REST client) + `erpnext.py` (mock/real mode, 4 snapshot sections)
-- **HubSpot** — `src/integrations/hubspot.py` (mock mode + SDK fallback)
-- **QuickBooks** — `src/integrations/quickbooks.py` (mock mode + httpx real, float-to-cents, DSO calculation)
-
-**Assembly:** 5 domain assemblers in `src/guardian/assemblers/` transform flat snapshot dicts → Pydantic domain states + computed health enums.
-
-**Detection:** 8 watchlist rules + 5 cross-domain correlations → `run_startup_detector()`. All deterministic, zero LLM calls.
-
-**Orchestration:** `src/orchestration/run_startup_guardian.py` runs 3 connectors via `asyncio.to_thread`, assembles 5 domain states, computes `overall_health = worst(health)`.
-
-**Testing:** 54 unit tests + 2 E2E tests against Mockoon containers (docker-compose.startup-guardian.yml). Mockoon fixtures with query-param routing for ERPNext doctypes. All monetary values in integer cents.
-
-### Deterministic Agentic Testing Suite
-287+ deterministic tests that verify agent behavior without LLM calls:
-- **Trajectory Tests** (87) — exact tool call order verification against 15 golden scenarios
-- **State Machine Tests** (17) — orchestrator transitions, health computation, connector failures
-- **Edge Case Tests** (47) — empty DB, boundary conditions, special characters, concurrent execution
-- **Behavioral Contracts** (68) — MUST ALWAYS/NEVER invariants (MissionStateV2 validity, no LLM in connectors, no secrets in logs)
-- **Mockoon Integration** (17) — real HTTP to Mockoon containers (ERPNext + QuickBooks), HubSpot SDK mocked
-
-All tests use `unittest.mock.patch` for LLM and external APIs. Mockoon containers provide deterministic fixture data. Zero real API calls.
-
-### HTMX Dashboards (Go side)
-3 new admin panels in `apps/core/internal/web/`:
-- **Decision Queue** — pending business decisions with approve/reject buttons (auto-refresh 10s)
-- **Guardrail Status** — 2x2 grid of current guardrail states (auto-refresh 15s)
-- **Finance Risk** — burn multiple, runway, working capital, WACC with color-coded risk (auto-refresh 15s)
+```go
+var specialistRoutes = map[string]specialistRoute{
+    "@sarthi":  {"QAWorkflow", "Sarthi"},
+    "@agent":   {"QAWorkflow", "Sarthi"},
+    "@qa":      {"QAWorkflow", "Sarthi"},
+    "@ask":     {"QAWorkflow", "Sarthi"},
+    "@finance": {"FinanceWorkflow", "Finance"},
+    "@data":    {"DataWorkflow", "Data"},
+    "@ops":     {"OpsWorkflow", "Ops"},
+    "@comms":   {"CommsWorkflow", "Comms"},
+    "@hiring":  {"HiringWorkflow", "Hiring"},
+}
+```
 
 ---
 
 ## Core Components
 
-### Trust Battery
-Every agent has a dynamic trust profile with score (0.0–1.0), route priority, degraded mode, and full event audit history. Degraded agents (trust < 0.4) are hard-blocked at the relevance gate. Extended in V4 with guardrail authority limits and auto-approve thresholds.
+### Specialist Agent System
+6 workflow types dispatched from the Go core via Temporal:
+- **Finance** — MRR/burn analysis, anomaly detection via FinanceGraph
+- **Data** — query, transform, aggregate via DataGraph
+- **Ops** — deploy, monitor, alert via OpsGraph
+- **Comms** — draft, notify, summarize via CommsGraph
+- **Hiring** — search, screen, evaluate via HiringGraph
+- **QA (Sarthi/Agent)** — general Q&A routed to QAWorkflow
 
-### Session Layer
-The `MissionState` is the single source of ground truth — shared context that every guardian reads and writes. Extended with 12 finance + guardrail fields in V4.
+### HITL with Temporal Signals
+- AI proposes action → `planned_actions` row created with `status=pending`
+- Temporal workflow reaches `AwaitWithTimeout("hitl-approval", 48h)`
+- User clicks Approve → POST → `SignalWorkflow(ctx, id, "hitl-approval", true)`
+- Workflow unblocks, execution continues
 
-### Joint Alert Council
-When 2+ guardians fire in the same session, the council synthesizes them into one alert with unified root cause, cross-domain severity, and a single recommended action. Prevents alert fatigue.
+### MissionState Write Path
+- **Python AI** compiles operational state (MRR, burn, health, signals)
+- **POST** to `/api/mission-state` → **PostgreSQL** (`mission_state` table)
+- **GET** → Go templates → HTML (dashboard)
+- Pure server-side rendered — no client state
 
-### Alert Quality Gate
-Every alert passes through 7 stages before reaching the founder:
-1. **Schema validation** — required fields, valid types
-2. **Trust check** — agent not degraded
-3. **Dedup check** — same alert not sent in last 60 minutes
-4. **Tone filter** — basic text quality
-5. **Authority check** — agent authorized for this severity level
-6. **Risk assessment** — financial risk classification
-7. **Privacy check** — PII detection
+### SSE Chat System
+- HTMX `hx-ext="sse"` declaratively subscribes to SSE stream
+- Server sends `event: chat` with HTML fragments as data payload
+- `renderChatBubble()` with `html.EscapeString()` — XSS-safe
+- Agent color classes: `agent-sarthi` (blue), `agent-finance` (green), `agent-data` (purple), `agent-ops` (yellow)
+- Non-blocking `tryBroadcast()` with `select/default` on buffered channel (capacity 100)
+- Two SSE endpoints: chat-specific and dashboard heartbeat
 
-### Anomaly Detector
-Roams across all MissionState fields looking for inconsistencies: burn alerts without operational symptoms, revenue growth with cash burn, short runways with misplaced founder focus.
+### Goroutine Safety Patterns
+- `sync.WaitGroup` for graceful shutdown tracking of in-flight workflow dispatches
+- Context cancellation via `c.Context().Done()` in SSE handlers
+- 5-minute context timeout merged from request context for workflow dispatch
+- `select { case ch <- msg: default: log }` prevents goroutine pile-up
 
-### Conflict Resolver
-Resolves contradictions between guardians — severity mismatches (critical vs. info) and signal contradictions. Highest severity wins; majority override available.
-
----
-
-## What TrackGuard Answers
-
-Every alert or recommendation answers four questions:
-
-| Question | How |
-|----------|------|
-| **What happened?** | Guardian detects metric deviation |
-| **Why did it happen?** | Narrative layer explains root cause |
-| **What if nothing changes?** | Predictive Guardian — runway projection, churn probability, threshold crossing |
-| **What should be done?** | Concrete recommended action with deadline |
-
----
-
-## One-Week Incident Lifecycle
-
-```text
-T+0   → Raw data arrives (webhook / sync)
-T+3m  → Guardian cycle fires (detect → reason → decide)
-T+5m  → Finance Rules compute 17 detections + 7 MBA primitives
-T+6m  → Guardrails Engine evaluates 7-stage policy
-T+7m  → Predictive Guardian forecasts trend, runway, churn
-T+8m  → BusinessDecisionEnvelope assembled
-T+9m  → HITL routes (auto / review / approve / blocked)
-T+10m → MissionState updated with finance + guardrail fields
-T+11m → HTMX dashboard refreshes (Decision Queue, Guardrail Status, Finance Risk)
-T+12m → Founder receives alert on Slack with recommendation
-T+15m → Founder acknowledges / disputes via Slack button
-T+20m → Trust score updated, event logged to Graphiti
-T+48h → Follow-up check: was action taken? Outcome measured?
-```
+### V3.0 Legacy: MBA Integration Layer
+The V3.0 deterministic business logic layer (Finance Rules, Guardrails Engine, Predictive Guardian, Startup Guardian) remains operational as a background pipeline. See historical sections below for full documentation.
 
 ---
 
@@ -229,52 +207,44 @@ T+48h → Follow-up check: was action taken? Outcome measured?
 
 | Layer | Technology |
 |-------|-----------|
-| **LLM** | OpenRouter (nemotron-3-super-120b via API), Gemini fallback |
-| **Embeddings** | OpenRouter (llama-nemotron-embed-vl-1b, 2048-dim) |
-| **Semantic Memory** | Graphiti + Neo4j 5.26 |
-| **Vector Store** | Qdrant (episodic + compressed) |
-| **Relational DB** | PostgreSQL (MissionState, trust events, sessions) |
-| **Cache** | Redis (working memory, session TTL) |
-| **Tracing** | Langfuse v4 (@observe) |
-| **Workflow** | Temporal (activity orchestration) |
-| **Business Logic** | Pure Python — standard library only (no numpy, no LLM) |
-| **Dashboard** | Go 1.24 + Fiber + HTMX |
-| **Language** | Python 3.13, Go 1.24 |
+| **Go Core** | Go 1.24 + Fiber v2 + HTMX |
+| **Python AI** | Python 3.13 + Temporal SDK + LangGraph + DSPy |
+| **Workflow Engine** | Temporal (1.39 SDK) |
+| **LLM** | Azure AI Foundry / Groq / Ollama (auto-detected via OpenAI SDK) |
+| **Structured Output** | instructor + Pydantic v2 (strict mode) |
+| **Relational DB** | PostgreSQL (MissionState, chat, approvals, traces) |
+| **Vector Store** | Qdrant (agent memory, semantic search) |
+| **Cache** | Redis (session state, working memory) |
+| **Observability** | Langfuse v4 (LLM tracing) |
 | **Config** | Env-only via pydantic-settings — zero hardcoded secrets |
 
 ---
 
-## Test Coverage (394+ Passing)
+## Test Coverage (371+ Passing — Go Build Clean)
 
 | Suite | Tests | Status |
 |-------|-------|--------|
-| Trust Battery | 28 | ✅ |
-| Session Layer | 35 | ✅ |
-| Co-founder Agent | 20 | ✅ |
-| Correlation + Avoidance | 14 | ✅ |
-| Guardian Watchlist | 69 | ✅ |
-| Finance Guardian | 25 | ✅ |
-| Memory Spine (Graphiti) | 26 | ✅ |
-| HITL | 11 | ✅ |
-| Finance Rules | 10 | ✅ |
-| Guardrails Engine | 22 | ✅ |
-| Business Pipeline | 14 | ✅ |
-| Predictive Guardian (engine) | 33 | ✅ |
-| Predictive Guardian (activity) | 10 | ✅ |
-| Go HTMX Handlers | 13 | ✅ |
-| Startup Guardian Connectors | 22 | ✅ |
-| Startup Guardian Assemblers | 13 | ✅ |
-| Startup Guardian Watchlists | 4 | ✅ |
-| Startup Guardian Correlations | 6 | ✅ |
-| Startup Guardian Detector | 3 | ✅ |
-| Startup Guardian Orchestrator | 5 | ✅ |
-| Startup Guardian E2E | 2 | ✅ |
-| **Deterministic Trajectory** | **87** | ✅ |
-| **Deterministic State Machine** | **17** | ✅ |
-| **Deterministic Edge Cases** | **47** | ✅ |
-| **Deterministic Contracts** | **68** | ✅ |
-| **Mockoon Integration** | **17** | ✅ |
-| All Others | 100+ | ✅ |
+| Python Unit Tests | 319 | ✅ (1 pre-existing timeout in curator_graphiti skipped) |
+| Go HTMX Web Handlers | 52 | ✅ |
+| Go Build | Clean | ✅ |
+| DB Tests | 🟡 Skip | Requires PostgreSQL container |
+| Redpanda Tests | 🟡 Skip | Requires Redpanda container |
+
+**Python Suites (319 tests):**
+- Session Layer, Co-founder Agent, Correlation + Avoidance
+- Guardian Watchlist (Finance, BI, Ops), Finance Guardian
+- Memory Spine (Graphiti), HITL, Finance Rules, Guardrails Engine
+- Business Pipeline, Predictive Guardian (engine + activity)
+- Startup Guardian (Connectors, Assemblers, Watchlists, Correlations, Detector, Orchestrator, E2E)
+- Deterministic Trajectory (87), State Machine (17), Edge Cases (47), Contracts (68), Mockoon (17)
+- All Others (100+)
+
+**Go Web Handler Suites (52 tests):**
+- Command Center (chat, approvals, mission state)
+- SSE streaming endpoints
+- @mention routing and specialist dispatch
+- HITL approval signal flow
+- Template rendering
 
 ---
 
@@ -283,46 +253,57 @@ T+48h → Follow-up check: was action taken? Outcome measured?
 ```
 apps/
   core/                    # Go Modular Monolith
-    cmd/                   # Entrypoints (server, worker, consumer)
+    cmd/
+      server/              # HTTP server entrypoint
+      worker/              # Temporal worker entrypoint
     internal/
       web/                 # HTTP handlers + HTMX templates
-        templates/         # 14 HTML templates (dashboard, panels)
-        business_handler.go # Decision Queue, Guardrail Status, Finance Risk
+        handler.go         # All HTTP handlers, @mention routing, SSE broadcast
+        sse.go             # Legacy SSE handler with DB polling
+        command_center_test.go  # 52+ tests
+        templates/
+          command_center.html       # Main dashboard
+          partials/                  # 13+ HTMX partials
+            command_chat.html        # Chat panel with hx-ext="sse"
+            command_approvals.html   # Approval queue UI
+            command_mission_state.html
       agents/              # Go agent definitions
-      workflow/            # Temporal workflows & activities
-      api/                 # Auth, webhook handlers
-    migrations/            # SQL migrations
+      workflow/            # Temporal workflows, stubs (cleaned)
+      temporal/            # Temporal client wrapper (SignalWorkflow, ExecuteWorkflow)
+      api/                 # HTTP handlers (Fiber + HTMX)
+      config/              # LLM configuration
+      db/                  # sqlc generated code
+      database/            # Connection utilities
   ai/                      # Python AI Worker
     src/
-      agents/              # Guardian agents (finance, bi, ops, qa, investor)
-      business/            # MBA integration (NEW V4)
-        finance_rules.py   # 17 detections + 7 MBA primitives
-        guardrails.py      # 7-stage policy engine
-        envelope.py        # BusinessDecisionEnvelope
-      predictive/          # Forecasting engine (NEW V4)
-        engine.py          # 10 pure forecasting functions
-        schemas.py         # 6 Pydantic models
+      agents/              # Guardian agents (V1-3 legacy)
+        pulse/             # PulseAgent (daily business pulse)
+        anomaly/           # AnomalyAgent (explains spikes)
+        investor/          # InvestorAgent (weekly updates)
+        qa/                # QAAgent (founder Q&A)
+        comms/             # CommsTriageAgent
+        hiring/            # HiringAgent
+        base/              # Abstract agent class, tool framework
+        finance/           # Finance specialist (V4 NEW — FinanceGraph)
+        data/              # Data specialist (V4 NEW — DataGraph)
+        ops/               # Ops specialist (V4 NEW — OpsGraph)
+      business/            # V3.0 MBA integration (Finance Rules, Guardrails)
+      predictive/          # V3.0 Forecasting engine
+      workflows/           # V4 NEW — Temporal workflow definitions
+        finance_workflow.py    # FinanceWorkflow
+        data_workflow.py       # DataWorkflow
+        ops_workflow.py        # OpsWorkflow
       activities/          # Temporal activities
-        run_finance_rules.py
-        run_guardrails.py
-        run_predictive_guardian.py
-      orchestration/       # Pipeline orchestrators
-        run_business_pipeline.py
-        run_startup_guardian.py       # Startup Guardian orchestrator
-        run_startup_guardian_cli.py   # CLI entrypoint
+      orchestration/       # Pipeline orchestrators (V3 legacy + V4)
       services/            # Trust battery, alert gate, decision engine
       session/             # MissionState, relevance gate
-      guardian/            # Watchlist, detector
-        assemblers/         # Startup Guardian domain state assemblers
-        startup_watchlists.py
-        startup_correlations.py
-        startup_detector.py
+      guardian/            # Watchlist, detector, assemblers
       integrations/        # Stripe, Plaid, Slack, ERPNext, HubSpot, QuickBooks
-      states/              # MissionStateV2 domain state schemas
-      schemas/             # Pydantic models
       memory/              # Graphiti, Qdrant, spine
+      schemas/             # Pydantic models
       events/              # Redis Streams event bus
-    tests/unit/            # 319+ tests
+    tests/
+      unit/                # 319+ tests
     infrastructure/        # SQL migrations
 ```
 
@@ -332,49 +313,43 @@ apps/
 
 ```bash
 # Start infrastructure
-docker start trackguard-postgres trackguard-neo4j trackguard-qdrant trackguard-redis
+docker start sarthi-postgres sarthi-qdrant sarthi-redis
 
 # Run Python tests
-cd apps/ai && uv run pytest tests/unit/ -q
+cd apps/ai && uv run pytest tests/ -v
 
-# Run deterministic tests (no Docker, no LLM)
-cd apps/ai && uv run pytest tests/deterministic/ -v
-
-# Run Mockoon integration tests (real Docker, no LLM)
-docker run -d --name sg-mock-erpnext -p 8099:8080 \
-  -v $(pwd)/apps/ai/tests/mockoon/erpnext.json:/data:ro mockoon/cli:latest -d /data -p 8080
-docker run -d --name sg-mock-hubspot -p 8098:8080 \
-  -v $(pwd)/apps/ai/tests/mockoon/hubspot.json:/data:ro mockoon/cli:latest -d /data -p 8080
-docker run -d --name sg-mock-quickbooks -p 8097:8080 \
-  -v $(pwd)/apps/ai/tests/mockoon/quickbooks.json:/data:ro mockoon/cli:latest -d /data -p 8080
-
-ERPNEXT_URL=http://localhost:8099 ERPNEXT_USER=test ERPNEXT_PASSWORD=test \
-QUICKBOOKS_CLIENT_ID=test QUICKBOOKS_ACCESS_TOKEN=test \
-QUICKBOOKS_COMPANY_ID=123146573628384 QUICKBOOKS_API_URL=http://localhost:8097 \
-HUBSPOT_ACCESS_TOKEN=test-token \
-  uv run pytest tests/integration/test_mockoon_pipeline.py -v
-
-# Run Go tests
+# Run Go web handler tests
 cd apps/core && go test ./internal/web/... -v
 
-# Run worker
+# Start Python Temporal worker
 cd apps/ai && uv run python -m src.worker
 
-# Run Startup Guardian CLI (mock mode, no containers needed)
-cd apps/ai && uv run python -m src.orchestration.run_startup_guardian_cli my-tenant
-
-# Run server
+# Start Go server
 cd apps/core && go run cmd/server/main.go
+
+# Verify SSE chat works
+# Open http://localhost:8080/command
+# Type "@finance What's my current burn?" → see "🤔 Thinking..." → see answer
 ```
+
+### SSE Chat Verification
+1. Start services: `docker start sarthi-postgres sarthi-redis sarthi-qdrant`
+2. Start Temporal: `docker start sarthi-temporal` (or `make up`)
+3. Start Python worker: `cd apps/ai && uv run python -m src.worker`
+4. Start Go server: `cd apps/core && go run cmd/server/main.go`
+5. Open `http://localhost:8080/command` in browser
+6. Select `@finance` from dropdown, type a question, click Send
+7. You should see: your message → "🤔 Thinking..." → Finance's answer
 
 ---
 
 ## Development Principles
 
 1. **Decision latency** — every feature must shorten the time between signal and action
-2. **Exception quality** — high trust beats high volume; reduce false positives
-3. **Founder cognition** — fewer, sharper, more actionable messages
-4. **Trust gradually** — copilot → workflow assistant → semi-autonomous → autonomous
-5. **No hardcoded secrets** — env-only configuration, centralized in `config/database.py`
-6. **Composition over inheritance** — new packages import and nest existing schemas, never modify them
-7. **Deterministic core** — finance, guardrails, and forecasting are pure Python with zero LLM calls
+2. **SSE-first** — push over pull; real-time streams over polling
+3. **Exception quality** — high trust beats high volume; reduce false positives
+4. **Founder cognition** — fewer, sharper, more actionable messages
+5. **Trust gradually** — copilot → workflow assistant → semi-autonomous → autonomous
+6. **No hardcoded secrets** — env-only configuration, centralized in `config/database.py`
+7. **Composition over inheritance** — new packages import and nest existing schemas, never modify them
+8. **Deterministic core** — finance, guardrails, and forecasting are pure Python with zero LLM calls

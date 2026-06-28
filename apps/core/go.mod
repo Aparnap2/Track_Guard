@@ -3,7 +3,7 @@ module iterateswarm-core
 go 1.24.0
 
 require (
-	github.com/Aparnap2/iterate_swarm v2.2.0+incompatible
+	github.com/Aparnap2/iterate_swarm/gen/go v0.0.0-00010101000000-000000000000
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -66,3 +66,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/Aparnap2/iterate_swarm/gen/go => ../../gen/go

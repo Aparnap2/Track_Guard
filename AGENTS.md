@@ -12,14 +12,19 @@
 
 ---
 
-## V3.0 Status
+## V4.0 Status
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Python Tests | ✅ 38 passing | session, cofounder, guardian, slackbot tests |
+| Python Tests | ✅ 319/320 passing | 1 pre-existing timeout in curator_graphiti |
 | Go Build | ✅ Clean | Binary compiles successfully |
-| Go HTMX Tests | ✅ 6 passing | onboarding, watchlist, llmops screens |
-| HTMX Routes | ✅ 3 routes | /api/htmx/onboarding, /api/htmx/watchlist, /api/htmx/llmops |
+| Go HTMX Handler Tests | ✅ 52 passing | command center, chat, approvals, mission state, SSE |
+| HTMX Routes | ✅ 13+ routes | Command center dashboard panels + SSE endpoints |
+| SSE Streaming | ✅ | HTMX `hx-ext="sse"` + `SetBodyStreamWriter` pattern |
+| Specialist Agents | ✅ | Finance, Data, Ops (each with LangGraph graph + Temporal workflow) |
+| HITL Temporal Signals | ✅ | `SignalWorkflow("hitl-approval")` unblocks `AwaitWithTimeout` |
+| MissionState Write Path | ✅ | `POST /api/mission-state` from Python AI → PostgreSQL |
+| @mention Routing | ✅ | `map[string]specialistRoute` — O(1) map lookup, 9 aliases → 6 workflows |
 | DB Tests | 🟡 Skip | Requires PostgreSQL container |
 | Webhook Tests | 🟡 Skip | Requires Redpanda container |
 
@@ -88,6 +93,7 @@ uv run pytest tests/test_session.py -v
 uv run pytest tests/test_cofounder.py -v
 uv run pytest tests/test_guardian.py -v
 uv run pytest tests/test_slackbot.py -v
+uv run pytest tests/test_curator_graphiti.py -v  # 1 pre-existing timeout
 
 # Run with coverage
 uv run pytest tests/ --cov=src --cov-report=term-missing
@@ -118,7 +124,7 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 - `camelCase` for unexported identifiers
 - `PascalCase` for exported identifiers
 - `SCREAMING_SNAKE_CASE` for constants
-- Acronyms: all caps (HTTP, URL, ID)
+- Acronyms: all caps (HTTP, URL, ID, SSE, HITL)
 
 **Error Handling:**
 - Check errors immediately: `if err != nil`
@@ -129,11 +135,38 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 **Struct Tags:**
 - JSON tags: `json:"field_name,omitempty"`
 - Database tags from sqlc generated code
+- Form tags: `form:"field_name"`
 
 **Logging:**
 - Use internal/logging package
 - Structured logging with key-value pairs
 - Log at appropriate levels (Info, Warn, Error)
+
+**SSE Pattern:**
+- Use Fiber v2 `SetBodyStreamWriter` with `*bufio.Writer`
+- Named SSE events: `event: chat`, `event: heartbeat`, `event: connected`
+- Non-blocking broadcast: `tryBroadcast()` with `select { case ch <- msg: default: log }`
+- HTMX declarative: `hx-ext="sse"` + `sse-connect` + `sse-swap` + `hx-swap`
+- HTML fragments as SSE data payload (server-rendered via `renderChatBubble()`)
+- Always `html.EscapeString()` on user/LLM text for XSS protection
+
+**Goroutine Safety:**
+- `sync.WaitGroup` for tracking in-flight workflow dispatches
+- Context cancellation via `c.Context().Done()` in SSE handlers
+- 5-minute context timeout for workflow dispatch goroutines
+- Non-blocking channel sends with `select/default` to prevent goroutine pile-up
+
+**Specialist Route Map Pattern:**
+```go
+var specialistRoutes = map[string]specialistRoute{
+    "@sarthi":  {"QAWorkflow", "Sarthi"},
+    "@finance": {"FinanceWorkflow", "Finance"},
+    "@data":    {"DataWorkflow", "Data"},
+    "@ops":     {"OpsWorkflow", "Ops"},
+}
+```
+- O(1) map lookup replaces if-else chain
+- Adding a specialist = 1 map entry + 1 Python workflow class
 
 ### SQL (sqlc)
 
@@ -165,20 +198,52 @@ apps/
       server/        # HTTP server entrypoint
       worker/        # Temporal worker entrypoint
     internal/
-      api/           # HTTP handlers (Fiber + HTMX)
-      agents/        # AI agents (triage, spec)
-      memory/        # Qdrant client
+      web/           # HTTP handlers (Fiber + HTMX + SSE)
+        handler.go   # All endpoints, @mention routing, SSE broadcast
+        sse.go       # Legacy SSE handler with DB polling
+        command_center_test.go  # 52+ tests
+        templates/
+          command_center.html       # Main dashboard
+          partials/                 # HTMX partials (13+ panels)
+            command_chat.html        # Chat with hx-ext="sse"
+            command_approvals.html   # Approval queue (approve/hold)
+            command_mission_state.html
+      agents/        # Go agent definitions
       config/        # LLM configuration
       db/            # sqlc generated code
       database/      # Connection utilities
-      temporal/      # Temporal client
-      workflow/      # Temporal workflows & activities
-      htmx/          # HTMX route handlers
-    web/templates/   # HTML templates
+      temporal/      # Temporal client (SignalWorkflow, ExecuteWorkflow)
+      workflow/      # Temporal workflows & stubs (cleaned)
     sqlc.yaml       # sqlc configuration
   ai/                # Python AI Worker
-    src/             # Python source (agents, workflows, guardian)
-    tests/           # Pytest test suite
+    src/
+      agents/        # Agent definitions
+        pulse/       # PulseAgent (daily business pulse)
+        anomaly/     # AnomalyAgent (explains spikes)
+        investor/    # InvestorAgent (weekly updates)
+        qa/          # QAAgent (founder Q&A)
+        comms/       # CommsTriageAgent
+        hiring/      # HiringAgent
+        base/        # Abstract agent class, tool framework
+        finance/     # V4 NEW — Finance specialist (FinanceGraph)
+        data/        # V4 NEW — Data specialist (DataGraph)
+        ops/         # V4 NEW — Ops specialist (OpsGraph)
+      workflows/     # V4 NEW — Temporal workflow definitions
+        finance_workflow.py
+        data_workflow.py
+        ops_workflow.py
+      business/      # V3.0 MBA integration
+      predictive/    # V3.0 Forecasting engine
+      activities/    # Temporal activities
+      orchestration/ # Pipeline orchestrators
+      services/      # Trust battery, alert gate
+      session/       # MissionState, relevance gate
+      guardian/      # Watchlist, detector, assemblers
+      integrations/  # Stripe, Plaid, Slack, ERPNext, HubSpot, QuickBooks
+      memory/        # Graphiti, Qdrant, spine
+      schemas/       # Pydantic models
+      events/        # Redis Streams event bus
+    tests/           # Pytest test suite (319+ tests)
     pyproject.toml   # Python dependencies
 ```
 

@@ -1,9 +1,22 @@
-<div class="grid grid-cols-4 gap-4">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 fade-in">
 {{range .KPIs}}
-    <div class="p-4 bg-white rounded-xl shadow">
-        <div class="text-sm text-gray-500">{{.Label}}</div>
-        <div class="text-2xl font-bold">{{.Value}}</div>
-        <div class="text-xs {{if eq .Trend "up"}}text-green-600{{else if eq .Trend "warn"}}text-yellow-600{{else}}text-red-600{{end}}">{{.Delta}}</div>
+    <div class="card p-3 md:p-4 hover:border-blue-500/20 transition-all duration-200">
+        <div class="text-xs font-medium" style="color:var(--text-muted)">{{.Label}}</div>
+        <div class="text-xl md:text-2xl font-bold metric-value mt-1" style="color:var(--text)">
+            {{.Value}}
+        </div>
+        <div class="flex items-center gap-1 mt-1.5">
+            {{if eq .Trend "up"}}
+            <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+            <span class="text-[11px] text-green-400">{{.Delta}}</span>
+            {{else if eq .Trend "warn"}}
+            <svg class="w-3 h-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <span class="text-[11px] text-yellow-400">{{.Delta}}</span>
+            {{else}}
+            <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            <span class="text-[11px] text-red-400">{{.Delta}}</span>
+            {{end}}
+        </div>
     </div>
 {{end}}
 </div>

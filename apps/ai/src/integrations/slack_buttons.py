@@ -79,25 +79,52 @@ def _handle_log_decision(alert_id: str) -> ButtonResult:
 
 
 def _send_feedback_signal(alert_id: str, response_type: str, score: float) -> None:
-    """Send feedback signal to Reflector."""
+    """Send feedback signal to Reflector.
+
+    Completes the ACE (Alert → Collect → Evaluate) loop:
+      1. Score the button response via Reflector → updates Trust Battery.
+      2. Write strategy confidence delta to Graphiti.
+      3. Write full playbook entry via Curator.update() with verification.
+    """
     # Skip in test environments to avoid blocking on async operations
     import sys
     if "pytest" in sys.modules or hasattr(sys, "_pytestfixturefunction"):
         return
 
+    # Extract context from alert_id (format: "{tenant}-{domain}-{id}" or "{prefix}-{id}")
+    tenant_id = alert_id.split("-")[0] if "-" in alert_id else "default"
+    domain = alert_id.split("-")[1] if "-" in alert_id else "general"
+
+    # Step 1: Score → Trust Battery update
     try:
         from src.agents.cofounder.reflector import score_from_button
         score_from_button(alert_id, response_type, score)
     except (ImportError, Exception):
         pass
 
+    # Step 2: Strategy confidence write → Graphiti
     try:
         from src.agents.cofounder.curator import update_strategy_confidence
         update_strategy_confidence(
-            tenant_id=alert_id.split("-")[0] if "-" in alert_id else "default",
-            domain=alert_id.split("-")[1] if "-" in alert_id else "general",
+            tenant_id=tenant_id,
+            domain=domain,
             feedback_type=response_type,
             score=score,
+        )
+    except (ImportError, Exception):
+        pass
+
+    # Step 3: Full playbook write via Curator → completes ACE loop
+    # Uses curator.update() which writes a playbook entry + runs
+    # verification assertions (cohesion, drift, feedback trend).
+    try:
+        from src.agents.cofounder.curator import Curator
+        curator = Curator(tenant_id=tenant_id)
+        curator.update(
+            domain=domain,
+            strategy=f"hitl_{response_type}",
+            score_delta=score,
+            evidence_count=1,
         )
     except (ImportError, Exception):
         pass

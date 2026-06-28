@@ -18,13 +18,17 @@
 |-----------|--------|-------|
 | Python Tests | ✅ 319/320 passing | 1 pre-existing timeout in curator_graphiti |
 | Go Build | ✅ Clean | Binary compiles successfully |
-| Go HTMX Handler Tests | ✅ 52 passing | command center, chat, approvals, mission state, SSE |
+| Go HTMX Handler Tests | ✅ 74+ passing | command center (19), business handlers (13), founder (14), plus LLMops, onboarding, watchlist, telegram, razorpay |
 | HTMX Routes | ✅ 13+ routes | Command center dashboard panels + SSE endpoints |
-| SSE Streaming | ✅ | HTMX `hx-ext="sse"` + `SetBodyStreamWriter` pattern |
+| SSE Streaming | ✅ | HTMX `hx-ext="sse"` + `SetBodyStreamWriter` pattern + SSEHub event-type filtering |
+| SSEHub Event-Type Filtering | ✅ | `Subscribe(tenantID, eventTypes...)` with per-subscriber channels (buffered 64) |
 | Specialist Agents | ✅ | Finance, Data, Ops (each with LangGraph graph + Temporal workflow) |
 | HITL Temporal Signals | ✅ | `SignalWorkflow("hitl-approval")` unblocks `AwaitWithTimeout` |
 | MissionState Write Path | ✅ | `POST /api/mission-state` from Python AI → PostgreSQL |
 | @mention Routing | ✅ | `map[string]specialistRoute` — O(1) map lookup, 9 aliases → 6 workflows |
+| Tool Calling Surface | ✅ | `apps/ai/src/agents/tools/` — ToolDef, TOOL_REGISTRY, 4 tools with HITL tier mapping |
+| ACE Reflector Loop | ✅ | Slack button clicks → `score_from_button()` + `update_strategy_confidence()` |
+| MissionState Promotion | ✅ | Added `prepared_brief`, `pending_decisions`, `last_updated_by` fields |
 | DB Tests | 🟡 Skip | Requires PostgreSQL container |
 | Webhook Tests | 🟡 Skip | Requires Redpanda container |
 
@@ -149,6 +153,7 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 - HTMX declarative: `hx-ext="sse"` + `sse-connect` + `sse-swap` + `hx-swap`
 - HTML fragments as SSE data payload (server-rendered via `renderChatBubble()`)
 - Always `html.EscapeString()` on user/LLM text for XSS protection
+- SSEHub event-type filtering: `Subscribe(tenantID, eventTypes...)` + `Broadcast(tenantID, SSEEvent)`
 
 **Goroutine Safety:**
 - `sync.WaitGroup` for tracking in-flight workflow dispatches
@@ -160,13 +165,19 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 ```go
 var specialistRoutes = map[string]specialistRoute{
     "@sarthi":  {"QAWorkflow", "Sarthi"},
+    "@agent":   {"QAWorkflow", "Sarthi"},
+    "@qa":      {"QAWorkflow", "Sarthi"},
+    "@ask":     {"QAWorkflow", "Sarthi"},
     "@finance": {"FinanceWorkflow", "Finance"},
     "@data":    {"DataWorkflow", "Data"},
     "@ops":     {"OpsWorkflow", "Ops"},
+    "@comms":   {"CommsWorkflow", "Comms"},
+    "@hiring":  {"HiringWorkflow", "Hiring"},
 }
 ```
 - O(1) map lookup replaces if-else chain
 - Adding a specialist = 1 map entry + 1 Python workflow class
+- 9 aliases → 6 workflows (QA, Finance, Data, Ops, Comms, Hiring)
 
 ### SQL (sqlc)
 
@@ -228,6 +239,12 @@ apps/
         finance/     # V4 NEW — Finance specialist (FinanceGraph)
         data/        # V4 NEW — Data specialist (DataGraph)
         ops/         # V4 NEW — Ops specialist (OpsGraph)
+        tools/       # V4 NEW — ToolRegistry + 4 ToolDef implementations
+          __init__.py          # ToolDef, TOOL_REGISTRY, register_tool(), auto-import
+          pause_payment_retry.py    # FG-05: pause Stripe retry (review)
+          draft_investor_update.py  # Schedule: draft investor email (approve)
+          schedule_customer_checkin.py  # FG-03/BG-04: at-risk checkin (auto)
+          flag_churn_risk.py        # BG-06/BG-04: flag churn segment (auto)
       workflows/     # V4 NEW — Temporal workflow definitions
         finance_workflow.py
         data_workflow.py

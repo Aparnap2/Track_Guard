@@ -56,6 +56,8 @@ dependencies = [
     "ollama>=0.6.2",
     "google-genai>=2.2.0",
     "hubspot-api-client",
+    # Slack SDK (SocketModeClient + WebClient for interactive events & alerts)
+    "slack-sdk>=3.30.0",
 ]
 
 [project.optional-dependencies]

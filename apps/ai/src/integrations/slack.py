@@ -423,10 +423,7 @@ async def handle_slack_message(
     return result
 
 
-# ── Demo delivery (Mockoon + capture sidecar) ────────────────────
-
-SLACK_DELIVERY_URL = os.environ.get("SLACK_DELIVERY_URL", "http://localhost:3001/slack/deliver")
-_CAPTURE_URL = "http://localhost:3002"
+# ── Guardian alert delivery ──────────────────────────────────────
 
 
 async def deliver_guardian_alert(
@@ -435,23 +432,30 @@ async def deliver_guardian_alert(
     pattern_name: str,
     severity: str,
 ) -> Dict[str, Any]:
-    """Deliver guardian alert to Mockoon (Slack mock) + capture sidecar."""
-    payload: Dict[str, Any] = {
-        "tenant_id": tenant_id,
-        "pattern_name": pattern_name,
-        "severity": severity,
-        "text": message,
-        "channel": "C_NOVAPULSE_DEMO",
-    }
-    async with httpx.AsyncClient(timeout=10) as client:
-        # Primary delivery (Mockoon → behaves like Slack)
-        try:
-            await client.post(SLACK_DELIVERY_URL, json=payload)
-        except Exception as e:
-            logger.warning("Mockoon delivery failed: %s", e)
-        # Capture sidecar (Playwright reads from here)
-        try:
-            await client.post(_CAPTURE_URL, json=payload)
-        except Exception:
-            pass  # capture is best-effort — never block delivery
-    return {"ok": True, "channel": "C_NOVAPULSE_DEMO"}
+    """Deliver guardian alert to Slack via the SDK WebClient.
+
+    Uses the shared ``SlackClient`` from slack_client.py which sends
+    the alert through the Slack API (``chat.postMessage``) instead of
+    the old Mockoon webhook mock.
+
+    This function preserves the same signature for backward compatibility.
+    See ``SlackClient.send_guardian_alert()`` for details.
+
+    Args:
+        tenant_id: Tenant identifier.
+        message: The alert body text.
+        pattern_name: Name of the detected anomaly/pattern.
+        severity: ``"info"`` | ``"warning"`` | ``"critical"``.
+
+    Returns:
+        Dict with ``ok``, ``channel``, and optional ``ts`` / ``error``.
+    """
+    from src.integrations.slack_client import SlackClient
+
+    client = SlackClient()
+    return await client.send_guardian_alert(
+        tenant_id=tenant_id,
+        message=message,
+        pattern_name=pattern_name,
+        severity=severity,
+    )

@@ -1574,8 +1574,8 @@ func (h *Handler) APICommandEvents(c *fiber.Ctx) error {
 // swap them directly into the DOM (via sse-swap="chat" + hx-swap="beforeend").
 func (h *Handler) APICommandChatEvents(c *fiber.Ctx) error {
 	tenantID := c.Query("tenant_id", "default")
-	subID, ch := h.sseHub.Subscribe(tenantID)
-	defer h.sseHub.Unsubscribe(tenantID, subID)
+	sub := h.sseHub.Subscribe(tenantID, "chat")
+	defer h.sseHub.Unsubscribe(tenantID, sub.ID)
 
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
@@ -1599,7 +1599,145 @@ func (h *Handler) APICommandChatEvents(c *fiber.Ctx) error {
 					return
 				}
 				w.Flush()
-			case msgBytes, ok := <-ch:
+			case msgBytes, ok := <-sub.Channel:
+				if !ok {
+					return
+				}
+				_, err := fmt.Fprintf(w, "%s", msgBytes)
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case <-done:
+				return
+			}
+		}
+	})
+
+	return nil
+}
+
+// APICommandMissionEvents is an SSE endpoint for mission state updates (event type: "mission-update").
+func (h *Handler) APICommandMissionEvents(c *fiber.Ctx) error {
+	tenantID := c.Query("tenant_id", "default")
+	sub := h.sseHub.Subscribe(tenantID, "mission-update")
+	defer h.sseHub.Unsubscribe(tenantID, sub.ID)
+
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	done := c.Context().Done()
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() { recover() }()
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to mission events\"}\n\n")
+		w.Flush()
+
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
+		for {
+			select {
+			case <-heartbeat.C:
+				_, err := fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case msgBytes, ok := <-sub.Channel:
+				if !ok {
+					return
+				}
+				_, err := fmt.Fprintf(w, "%s", msgBytes)
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case <-done:
+				return
+			}
+		}
+	})
+
+	return nil
+}
+
+// APICommandHITLEvents is an SSE endpoint for HITL approval events (event type: "hitl-item").
+func (h *Handler) APICommandHITLEvents(c *fiber.Ctx) error {
+	tenantID := c.Query("tenant_id", "default")
+	sub := h.sseHub.Subscribe(tenantID, "hitl-item")
+	defer h.sseHub.Unsubscribe(tenantID, sub.ID)
+
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	done := c.Context().Done()
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() { recover() }()
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to HITL events\"}\n\n")
+		w.Flush()
+
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
+		for {
+			select {
+			case <-heartbeat.C:
+				_, err := fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case msgBytes, ok := <-sub.Channel:
+				if !ok {
+					return
+				}
+				_, err := fmt.Fprintf(w, "%s", msgBytes)
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case <-done:
+				return
+			}
+		}
+	})
+
+	return nil
+}
+
+// APICommandSessionEvents is an SSE endpoint for agent message events (event type: "agent-message").
+func (h *Handler) APICommandSessionEvents(c *fiber.Ctx) error {
+	tenantID := c.Query("tenant_id", "default")
+	sub := h.sseHub.Subscribe(tenantID, "agent-message")
+	defer h.sseHub.Unsubscribe(tenantID, sub.ID)
+
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	done := c.Context().Done()
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() { recover() }()
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to session events\"}\n\n")
+		w.Flush()
+
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
+		for {
+			select {
+			case <-heartbeat.C:
+				_, err := fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case msgBytes, ok := <-sub.Channel:
 				if !ok {
 					return
 				}
@@ -1699,6 +1837,9 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	app.Get("/api/command/chart-data", h.APICommandChartData)
 	app.Post("/api/command/chat/send", h.APICommandChatSend)
 	app.Get("/api/command/chat/events", h.APICommandChatEvents)
+	app.Get("/events/mission", h.APICommandMissionEvents)
+	app.Get("/events/hitl", h.APICommandHITLEvents)
+	app.Get("/events/session", h.APICommandSessionEvents)
 	app.Get("/api/command/stream", h.APICommandEvents)
 	app.Get("/api/command/events", h.APICommandEvents)
 

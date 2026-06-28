@@ -23,7 +23,7 @@ The IterateSwarm Sarthi agent platform underwent a major architecture evolution 
 
 ## Decision
 
-We made seven architectural decisions to address these issues. Each is documented below.
+We made ten architectural decisions to address these issues. Each is documented below.
 
 ### Decision 1: HTMX SSE over WebSocket / Raw JS EventSource
 
@@ -121,6 +121,84 @@ var specialistRoutes = map[string]specialistRoute{
 
 **Rationale**: The removed types have real implementations in `apps/ai/src/` (Python) or `apps/core/internal/agents/` (Go). Keeping stubs created confusion — developers had to check whether a type was a stub or the real implementation. Removing them means "if it's in stubs.go, it's a real convenience type used here." This reduces cognitive load and prevents stale stubs from diverging from real implementations.
 
+### Decision 8: SSEHub Event-Type Filtering (2026-06-28)
+
+**What**: Introduced a dedicated SSEHub with event-type filtering to replace the raw `chatBroadcast chan fiber.Map` for chat-only SSE. Event filtering enables domain-specific SSE streams (chat, mission state, HITL, session events).
+
+**How**:
+```go
+type SSEEvent struct {
+    Type    string `json:"type"`
+    Payload string `json:"payload"`
+}
+
+type Subscription struct {
+    ID      string
+    Channel chan []byte
+    Types   []string // empty = all events
+}
+```
+- `SSEHub.Subscribe(tenantID, "chat")` returns a subscription filtered to chat events only.
+- `SSEHub.Broadcast(tenantID, SSEEvent{Type: "chat", ...})` only delivers to subscribers whose `Types` filter matches (or whose filter is empty = all events).
+- Non-blocking fan-out with `select/default` on per-subscriber channels (buffered to 64).
+- Backward-compatible: `tryBroadcast()` also pushes to `sseHub.Broadcast("default", SSEEvent{Type: "chat", ...})` alongside the legacy `chatBroadcast` channel.
+- The `Subscription.Types` filter eliminates the need for separate SSE channels per event domain — one hub, typed routing.
+
+**Rationale**: The original `chatBroadcast` channel was chat-only. As the SSE surface grows to include mission state updates, HITL approval signals, and session events, a single channel with event-type filtering prevents channel explosion (one channel per event type) while keeping the fan-out pattern simple. Per-subscriber channels (buffered 64) replace the single shared buffer (100), reducing head-of-line blocking.
+
+### Decision 9: Tool Calling Surface — ToolRegistry + HITL Tier Mapping (2026-06-28)
+
+**What**: Created a tool calling surface where agent actions are defined as standalone `ToolDef` entries, registered in a global `TOOL_REGISTRY`, and wired to the HITL manager for automatic tier assignment.
+
+**How**:
+```python
+# apps/ai/src/agents/tools/__init__.py
+@dataclass
+class ToolDef:
+    name: str
+    description: str
+    hitl_tier: str              # "auto" | "review" | "approve" | "blocked"
+    fn: Callable[..., Awaitable[dict]]
+    trigger_patterns: list[str]  # e.g., ["FG-05", "BG-04"]
+```
+- 4 tool implementations in `apps/ai/src/agents/tools/`:
+  - `pause_failed_payment_retry` — tier: review, triggered by FG-05
+  - `draft_investor_update` — tier: approve, triggered by scheduled/manual
+  - `schedule_customer_checkin` — tier: auto, triggered by FG-03, BG-04
+  - `flag_churn_risk_customer` — tier: auto, triggered by BG-06, BG-04
+- Tools auto-register on import via `register_tool(ToolDef(...))` at module bottom.
+- `get_tools_for_tier(tier)` returns tools matching a HITL routing decision.
+- `get_tools_for_patterns(pattern_ids)` returns tools matching triggered alert patterns.
+- HITL tier strings are shared with `HITLManager.route()` output: `"auto" | "review" | "approve" | "blocked"`.
+
+**Rationale**: Previously there was no explicit connection between alert patterns (FG-05, BG-04) and executable actions. Tools lived inside agent graphs with no centralized registry for discovery. The ToolDef pattern makes each tool self-documenting (name, description, tier, trigger patterns), and the global registry enables the HITL manager to suggest tools based on fired patterns. Each tool's `hitl_tier` is a first-class field, so routing decisions propagate from the HITL manager to tool execution without extra branching.
+
+### Decision 10: Slack Consolidation — SocketMode Extension, Not Bolt (2026-06-28)
+
+**What**: Extended the existing `SlackClient` with SocketMode listener support (`SocketModeClient` from `slack_sdk.socket_mode`) instead of adopting Slack's Bolt framework. Wired ACE (Acknowledge-Consequence-Evaluate) reflector loop into `slack_buttons.py` for feedback scoring.
+
+**How**:
+```python
+# apps/ai/src/integrations/slack_client.py
+from slack_sdk import WebClient
+from slack_sdk.socket_mode import SocketModeClient
+
+class SlackClient:
+    def __init__(self):
+        self.client = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
+        self.socket_client = SocketModeClient(
+            app_token=os.getenv("SLACK_APP_TOKEN"),
+            web_client=self.client
+        )
+```
+- SocketModeClient receives interactive payloads via Slack's Socket Mode (WebSocket), avoiding public HTTPS endpoints for Slack events.
+- `slack_buttons.py` routes five button actions: `acknowledge`, `dispute`, `show_breakdown`, `log_decision`.
+- Buttons wire to ACE reflector loop via `_send_feedback_signal()` → `score_from_button()` (Reflector) + `update_strategy_confidence()` (Curator).
+- Button signals (`+1.0` for acknowledge, `-1.0` for dispute) update the trust battery and strategy confidence scores.
+- Decision logging modal (`open_decision_modal`) captures structured decision data (decision, alternatives, reasoning) and persists via `log_decision` activity.
+
+**Rationale**: Adding SocketMode to the existing `SlackClient` avoids the Bolt framework dependency and its opinionated middleware stack. The Socket Mode WebSocket connection eliminates the need for a public Slack Events API endpoint, simplifying deployment (no ngrok, no public URL for dev). The ACE loop wiring in `slack_buttons.py` closes the feedback loop: user button clicks → Reflector scores → strategy confidence updates — all without leaving the existing `slack_client.py` class.
+
 ---
 
 ## Consequences
@@ -136,6 +214,9 @@ var specialistRoutes = map[string]specialistRoute{
 | Server-rendered bubbles | Single source of truth for HTML. XSS-safe via html.EscapeString. No client templates. |
 | MissionState POST | Clear write path. Dashboard is a dumb renderer. No client state hydration. |
 | Remove stubs | 40 fewer lines of stale dead code. Clear signal: "if it's here, it's real." |
+| SSEHub event filtering | Event-type routing eliminates channel explosion. Per-subscriber channels reduce head-of-line blocking. |
+| ToolRegistry + HITL mapping | Self-documenting tools with explicit tier. Central registry enables pattern-driven tool suggestion. |
+| Slack SocketMode | No Bolt dependency. No public Slack Events URL needed. ACE loop closes feedback via reflector. |
 
 ### Tradeoffs
 
@@ -148,6 +229,9 @@ var specialistRoutes = map[string]specialistRoute{
 | Server-rendered bubbles | Harder to add interactive elements (copy buttons, actions) — would need JS event delegation. |
 | MissionState POST | Tight coupling between Python worker and Go schema. Schema changes require coordinated deploys. |
 | Remove stubs | `DiscordApprovalInput` still exists as a convenience type — could become stale if Discord integration changes. |
+| SSEHub event filtering | Per-subscriber channels (64 buffer) per client increase memory under high concurrent connections. |
+| ToolRegistry | Tools are auto-registered on import — import order dependencies could cause registration race at startup. |
+| Slack SocketMode | Requires `SLACK_APP_TOKEN` (Socket Mode token) in addition to `SLACK_BOT_TOKEN`. WebSocket dependency for event ingestion. |
 
 ### Risks
 
@@ -155,6 +239,8 @@ var specialistRoutes = map[string]specialistRoute{
 2. **Goroutine lifetime** — Long-lived goroutines (5-min timeout) hold references to request context. If the client disconnects, the goroutine continues until timeout or completion. Mitigation: check `ctx.Done()` in the goroutine loop pattern for future streaming responses.
 3. **Specialist routing fragility** — Workflow type strings bypass compile-time checking. Mitigation: add a test that iterates all routes and verifies workflow names match registered Temporal workflow types.
 4. **Signal ID mismatch** — The workflow ID used in the approval action must match the workflow ID that created the `planned_actions` row. If they diverge, signals are lost. Mitigation: store `workflow_id` in the `planned_actions` table and use it for signaling.
+5. **Tool tier mismatch** — A tool's `hitl_tier` could diverge from the HITL manager's routing decision for a given pattern. Mitigation: `get_tools_for_tier()` provides a single source of truth — tools should be registered with tiers that match the HITL manager output.
+6. **Slack SocketMode reconnection** — If the Socket Mode WebSocket drops, Slack button interactions are lost until reconnection. Mitigation: SocketModeClient auto-reconnects; monitor reconnection events via the `on_socket_connected` callback.
 
 ---
 

@@ -36,11 +36,15 @@ The knowledge graph identified 708 communities. Key clusters:
 | **Startup Guardian** | `src/guardian/` | System health monitoring, anomaly detection |
 | **Memory Integration** | `src/memory/` | Qdrant vector store, Redis session cache |
 | **LLM Ops** | `src/config/` | API key management, model selection, rate limiting |
+| **Tool Registry** | `src/agents/tools/` | ToolDef dataclass, TOOL_REGISTRY, 4 registered tools with HITL tier mapping |
+| **HITL Manager** | `src/hitl/` | 3-tier routing (auto/review/approve), guardrail-aware route_extended, confidence scoring |
+| **Slack Integration** | `src/integrations/slack_client.py`, `slack_buttons.py` | SocketMode WebSocket client, ACE button loop, decision modal |
 
 ### Go Core Layer
 | Community | Key Files | Description |
 |-----------|-----------|-------------|
-| **Go Handlers** | `handler.go`, `sse.go` | HTTP endpoints, SSE streaming, HTMX partials |
+| **Go Handlers** | `handler.go`, `sse.go`, `sse_hub.go` | HTTP endpoints, SSE streaming (legacy polling), SSEHub event-type fan-out |
+| **SSEHub** | `sse_hub.go` | Per-subscriber channel hub with event-type filtering (`Subscribe`/`Broadcast`) |
 | **Temporal Workflows** | `internal/workflow/`, `internal/temporal/` | Workflow stubs, client, activity definitions |
 | **Go Database Layer** | `internal/db/`, `internal/database/` | SQL queries, connection management |
 | **Config Module** | `internal/config/` | LLM provider config (Azure, Groq, Ollama) |
@@ -110,8 +114,11 @@ make build # Builds Go binaries
 |-------|---------|-------------|
 | `GET /command` | `CommandCenter` | Main dashboard page |
 | `POST /api/command/chat/send` | `APICommandChatSend` | Chat submission + Temporal dispatch in goroutine |
-| `GET /api/command/chat/events` | `APICommandChatEvents` | SSE stream for chat bubbles (SetBodyStreamWriter) |
-| `GET /api/command/events` | `APICommandEvents` | SSE stream for dashboard heartbeats |
+| `GET /api/command/chat/events` | `APICommandChatEvents` | SSE stream for chat bubbles (SSEHub, subscribes to `chat` events) |
+| `GET /api/command/events` | `APICommandEvents` | SSE stream for dashboard heartbeats (legacy, no SSEHub) |
+| `GET /api/command/mission/events` | `APICommandMissionEvents` | SSE stream for mission state updates (SSEHub, subscribes to `mission` events) |
+| `GET /api/command/hitl/events` | `APICommandHITLEvents` | SSE stream for HITL approval signals (SSEHub, subscribes to `hitl` events) |
+| `GET /api/command/session/events` | `APICommandSessionEvents` | SSE stream for session context events (SSEHub, subscribes to `session` events) |
 | `GET /api/command/status` | `APICommandStatus` | Health score bar |
 | `GET /api/command/kpis` | `APICommandKPIs` | KPI cards (MRR, Runway, etc.) |
 | `GET /api/command/mission-state` | `APICommandMissionState` | Read mission_state for dashboard |
@@ -128,8 +135,8 @@ make build # Builds Go binaries
 
 ```sql
 -- Core operational tables (command_center.sql)
-mission_state     -- Compiled state from Python AI (MRR, burn, health)
-planned_actions   -- Approval queue (actor, action_type, risk_level)
+mission_states    -- Compiled state from Python AI (MRR, burn, health, brief, decisions)
+planned_actions   -- Approval queue (actor, action_type, risk_level, workflow_id)
 agent_traces      -- Activity log from Python AI (duration, tokens, cost)
 chat_messages     -- Chat history (sender, mention, message)
 
@@ -138,6 +145,8 @@ hitl_queue        -- Legacy HITL queue (migrating to planned_actions)
 agent_outputs     -- Finance anomaly alerts, BI query results
 agent_events      -- Polled SSE events for legacy dashboard
 ```
+
+**Note:** `mission_state` → `mission_states` (migration 004 resolved schema drift). The MissionState dataclass (`apps/ai/src/session/mission_state.py`) now includes `prepared_brief`, `pending_decisions`, and `last_updated_by` fields.
 
 ## Quick Reference
 

@@ -1,9 +1,10 @@
-# Sarthi — AI Coordination Layer for Solo Founders
+# Sarthi — Handles everything up to the moment of consequential judgment
 
 > Server-rendered command center with SSE push, goroutine-based Temporal dispatch, and Python specialist agents.
 > Chat → @mention → specialist workflow → SSE result — all driven by Go + Temporal + LangGraph.
+> Sarthi handles everything up to the moment of consequential judgment — the AI coordination layer for solo founders.
 
-[![Tests](https://img.shields.io/badge/tests-371%20passing-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-393%2B%20passing-brightgreen)](#)
 [![Architecture](https://img.shields.io/badge/architecture-SSE%20%2B%20Specialist-blue)](#)
 [![Go](https://img.shields.io/badge/Go-1.24-blue?logo=go)](#)
 [![Python](https://img.shields.io/badge/Python-3.13-green?logo=python)](#)
@@ -121,6 +122,9 @@ User types "@finance Q3 revenue?" → HTMX POST /api/command/chat/send
 | **Server-rendered chat bubbles** | `html.EscapeString()` XSS protection. Agent color classes. Single source of truth for HTML. |
 | **MissionState POST endpoint** | Python AI → POST → PostgreSQL → GET → Dashboard. Pure server-side rendered. |
 | **Remove dead stubs** | Cleaned 40 lines of stale placeholder types from `workflow/stubs.go`. |
+| **SSEHub event-type filtering** | Event-type routing (chat/mission/hitl/session). Per-subscriber channels (64 buffer) eliminate head-of-line blocking. |
+| **ToolRegistry + HITL tier mapping** | 4 tools with explicit tiers (auto/review/approve) triggered by alert pattern IDs. Self-documenting tool definitions. |
+| **Slack SocketMode + ACE loop** | No Bolt dependency. Socket Mode eliminates public HTTP endpoint. Button clicks → Reflector → Curator confidence. |
 
 > Full details: [ADR-001: Sarthi v4.0 Architecture Evolution](.opencode/context/adr/001-sarthi-v4-architecture-evolution.md)
 
@@ -158,6 +162,7 @@ var specialistRoutes = map[string]specialistRoute{
     "@hiring":  {"HiringWorkflow", "Hiring"},
 }
 ```
+- O(1) map lookup, 9 aliases → 6 workflows.
 
 ---
 
@@ -178,11 +183,31 @@ var specialistRoutes = map[string]specialistRoute{
 - User clicks Approve → POST → `SignalWorkflow(ctx, id, "hitl-approval", true)`
 - Workflow unblocks, execution continues
 
+### Tool Calling Surface (ToolRegistry)
+4 tool functions defined as `ToolDef` entries in a global `TOOL_REGISTRY`, wired to HITL manager:
+
+| Tool | Tier | Trigger | Action |
+|------|------|---------|--------|
+| `pause_failed_payment_retry` | review | FG-05 (3+ failed payments) | Pause Stripe retry |
+| `draft_investor_update` | approve | Schedule | Draft investor email |
+| `schedule_customer_checkin` | auto | FG-03, BG-04 | Auto-schedule reminder |
+| `flag_churn_risk_customer` | auto | BG-06, BG-04 | Flag churn segment |
+
+Tools auto-register via `register_tool(ToolDef(...))` on import. `get_tools_for_tier()` and `get_tools_for_patterns()` enable pattern-driven tool suggestion.
+
+### ACE Reflector Loop (Slack Integration)
+- `SlackClient` extended with `SocketModeClient` (WebSocket, no Bolt)
+- Button interactions routed in `slack_buttons.py` (5 action types)
+- ACE loop: button click → `score_from_button()` (Reflector) → `update_strategy_confidence()` (Curator)
+- Decision modal captures structured decisions (decision, alternatives, reasoning)
+
 ### MissionState Write Path
 - **Python AI** compiles operational state (MRR, burn, health, signals)
-- **POST** to `/api/mission-state` → **PostgreSQL** (`mission_state` table)
+- **POST** to `/api/mission-state` → **PostgreSQL** (`mission_states` table)
 - **GET** → Go templates → HTML (dashboard)
 - Pure server-side rendered — no client state
+- New fields: `prepared_brief`, `pending_decisions`, `last_updated_by`
+- Schema: `mission_states` (migration 004 reconciled `mission_state` → `mission_states`)
 
 ### SSE Chat System
 - HTMX `hx-ext="sse"` declaratively subscribes to SSE stream
@@ -190,7 +215,10 @@ var specialistRoutes = map[string]specialistRoute{
 - `renderChatBubble()` with `html.EscapeString()` — XSS-safe
 - Agent color classes: `agent-sarthi` (blue), `agent-finance` (green), `agent-data` (purple), `agent-ops` (yellow)
 - Non-blocking `tryBroadcast()` with `select/default` on buffered channel (capacity 100)
-- Two SSE endpoints: chat-specific and dashboard heartbeat
+- **SSEHub** (`sse_hub.go`): Event-type filtered fan-out hub with per-subscriber channels (buffer 64)
+  - `Subscribe(tenantID, eventTypes...)` — typed subscriptions (chat, mission, hitl, session)
+  - `Broadcast(tenantID, SSEEvent)` — delivers only to matching subscribers
+- Event types: `chat` (bubbles), `mission` (state updates), `hitl` (approval signals), `session` (context events)
 
 ### Goroutine Safety Patterns
 - `sync.WaitGroup` for graceful shutdown tracking of in-flight workflow dispatches
@@ -220,12 +248,12 @@ The V3.0 deterministic business logic layer (Finance Rules, Guardrails Engine, P
 
 ---
 
-## Test Coverage (371+ Passing — Go Build Clean)
+## Test Coverage (393+ Passing — Go Build Clean)
 
 | Suite | Tests | Status |
 |-------|-------|--------|
 | Python Unit Tests | 319 | ✅ (1 pre-existing timeout in curator_graphiti skipped) |
-| Go HTMX Web Handlers | 52 | ✅ |
+| Go HTMX Web Handlers | 74+ | ✅ |
 | Go Build | Clean | ✅ |
 | DB Tests | 🟡 Skip | Requires PostgreSQL container |
 | Redpanda Tests | 🟡 Skip | Requires Redpanda container |
@@ -239,12 +267,13 @@ The V3.0 deterministic business logic layer (Finance Rules, Guardrails Engine, P
 - Deterministic Trajectory (87), State Machine (17), Edge Cases (47), Contracts (68), Mockoon (17)
 - All Others (100+)
 
-**Go Web Handler Suites (52 tests):**
-- Command Center (chat, approvals, mission state)
-- SSE streaming endpoints
-- @mention routing and specialist dispatch
-- HITL approval signal flow
-- Template rendering
+**Go Web Handler Suites (74+ tests):**
+- Command Center (chat, approvals, mission state) — 19 tests
+- Business Handlers (decision queue, guardrail status, finance risk) — 13 tests
+- Founder Dashboard (summary, reflection, commitments) — 14 tests
+- LLM Ops Dashboard, Onboarding Status, Watchlist Viewer — 9 tests
+- Telegram, Razorpay webhook handlers — 18 tests
+- SSE streaming and chat broadcast — 1 test
 
 ---
 
@@ -287,6 +316,7 @@ apps/
         finance/           # Finance specialist (V4 NEW — FinanceGraph)
         data/              # Data specialist (V4 NEW — DataGraph)
         ops/               # Ops specialist (V4 NEW — OpsGraph)
+        tools/             # V4 NEW — ToolRegistry + 4 ToolDef implementations
       business/            # V3.0 MBA integration (Finance Rules, Guardrails)
       predictive/          # V3.0 Forecasting engine
       workflows/           # V4 NEW — Temporal workflow definitions

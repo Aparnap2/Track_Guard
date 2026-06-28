@@ -88,6 +88,11 @@ class MissionState:
     guardrail_blocking: bool = False
     investor_facing_alert: bool = False
 
+    # ── Cognitive offloading fields ──────────────────────────────────
+    prepared_brief: str | None = None              # LLM-generated brief for founder context
+    pending_decisions: list[dict] | None = None    # JSONB array of pending founder decisions
+    last_updated_by: str | None = None             # which agent/specialist last wrote to MissionState
+
 
 async def get_mission_state(tenant_id: str) -> MissionState:
     """Get MissionState from database.
@@ -110,7 +115,8 @@ async def get_mission_state(tenant_id: str) -> MissionState:
                    burn_multiple, effective_runway_days, working_capital_ratio,
                    npv_last_decision, wacc_estimate, last_approval_tier, last_reversible,
                    active_authority_limit, guardrail_override_reason, guardrail_risk_type,
-                   guardrail_blocking, investor_facing_alert
+                   guardrail_blocking, investor_facing_alert,
+                   prepared_brief, pending_decisions, last_updated_by
             FROM mission_states
             WHERE tenant_id = $1
             ORDER BY timestamp DESC
@@ -148,6 +154,9 @@ async def get_mission_state(tenant_id: str) -> MissionState:
                 guardrail_risk_type=row["guardrail_risk_type"],
                 guardrail_blocking=row["guardrail_blocking"],
                 investor_facing_alert=row["investor_facing_alert"],
+                prepared_brief=row["prepared_brief"],
+                pending_decisions=row["pending_decisions"],
+                last_updated_by=row["last_updated_by"],
             )
     except Exception as e:
         log.warning(f"MissionState lookup failed for {tenant_id}: {e}")
@@ -177,10 +186,12 @@ async def update_mission_state(state: MissionState) -> bool:
                 burn_multiple, effective_runway_days, working_capital_ratio,
                 npv_last_decision, wacc_estimate, last_approval_tier, last_reversible,
                 active_authority_limit, guardrail_override_reason, guardrail_risk_type,
-                guardrail_blocking, investor_facing_alert, created_at
+                guardrail_blocking, investor_facing_alert, created_at,
+                prepared_brief, pending_decisions, last_updated_by
             )
             VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW())
+                    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(),
+                    $26, $27, $28)
             ON CONFLICT (tenant_id) DO UPDATE SET
                 timestamp = NOW(),
                 runway_days = EXCLUDED.runway_days,
@@ -206,7 +217,10 @@ async def update_mission_state(state: MissionState) -> bool:
                 guardrail_override_reason = EXCLUDED.guardrail_override_reason,
                 guardrail_risk_type = EXCLUDED.guardrail_risk_type,
                 guardrail_blocking = EXCLUDED.guardrail_blocking,
-                investor_facing_alert = EXCLUDED.investor_facing_alert
+                investor_facing_alert = EXCLUDED.investor_facing_alert,
+                prepared_brief = EXCLUDED.prepared_brief,
+                pending_decisions = EXCLUDED.pending_decisions,
+                last_updated_by = EXCLUDED.last_updated_by
             """,
             state.tenant_id,
             state.runway_days,
@@ -233,6 +247,9 @@ async def update_mission_state(state: MissionState) -> bool:
             state.guardrail_risk_type,
             state.guardrail_blocking,
             state.investor_facing_alert,
+            state.prepared_brief,
+            state.pending_decisions,
+            state.last_updated_by,
         )
         await conn.close()
         log.info(f"MissionState updated for tenant: {state.tenant_id}")

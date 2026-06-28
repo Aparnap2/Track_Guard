@@ -137,8 +137,14 @@ func (h *Handler) APICommandChatEvents(c *fiber.Ctx) error {
 
 Key patterns:
 - **Fiber v2 `SetBodyStreamWriter`**: Proper SSE streaming support
-- **`tryBroadcast()`**: Non-blocking send with `select/default` to prevent goroutine leaks
-- **Two SSE endpoints**: `APICommandChatEvents` (chat-specific) and `APICommandEvents` (dashboard heartbeats)
+- **`tryBroadcast()`**: Non-blocking send with `select/default` to prevent goroutine leaks. Also pushes to `sseHub.Broadcast("default", SSEEvent{Type: "chat", ...})` for fan-out.
+- **SSEHub event-type filtering**: The SSEHub (sse_hub.go) manages per-subscriber channels with optional `Types` filter. Subscribing with `sseHub.Subscribe(tenantID, "chat")` only receives events with `Type == "chat"`.
+- **Three SSE event domains** (2026-06-28):
+  - `event: chat` — Chat bubble HTML fragments (for `sse-swap="chat"`)
+  - `event: mission` — Mission state updates (prepared_brief, pending_decisions changes)
+  - `event: hitl` — HITL approval signals (new pending, approved, rejected)
+  - `event: session` — Session events (connection state, context updates)
+- **SSE endpoints**: `APICommandChatEvents` (chat-specific via SSEHub), `APICommandEvents` (dashboard heartbeats), plus new typed subscribe endpoints for mission/hitl/session event types.
 - **`recover()`**: Deferred in stream writer to prevent panic from closed connections
 
 ### 5. HTMX SSE Swap
@@ -173,12 +179,16 @@ Agent color classes: `agent-sarthi` (blue), `agent-finance` (green), `agent-data
 
 | Scenario | Behavior | File Reference |
 |----------|----------|----------------|
-| No DB | Returns empty string | handler.go:1222-1224 |
-| No Temporal | Skips workflow dispatch | handler.go:1272 |
-| Workflow error | Broadcasts error bubble | handler.go:1309 |
-| Channel full | Drops message, logs warning | handler.go:1415-1419 |
-| Empty message | Returns empty string | handler.go:1201-1203 |
-| Missing mention | No workflow dispatch, just saves message | handler.go:1259-1270 |
+| No DB | Returns empty string | handler.go |
+| No Temporal | Skips workflow dispatch | handler.go |
+| Workflow error | Broadcasts error bubble | handler.go |
+| Channel full | Drops message, logs warning | handler.go |
+| Empty message | Returns empty string | handler.go |
+| Missing mention | No workflow dispatch, just saves message | handler.go |
+| SSEHub Subscribe with type filter | Only receives matching event types | sse_hub.go:39-53 |
+| SSEHub Broadcast no matching subs | Event silently dropped (no subscriber with matching type filter) | sse_hub.go:75-93 |
+| SSEHub subscriber channel full | Event dropped per sub (non-blocking per-subscriber channel) | sse_hub.go:89-92 |
+| SSEHub Unsubscribe | Channel closed and removed from subscriber map | sse_hub.go:56-64 |
 
 ### 8. JavaScript Integration
 

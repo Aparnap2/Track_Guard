@@ -1,18 +1,20 @@
 """HITL Manager — 3-tier human-in-the-loop routing.
 
-Tier 1 — AUTO: severity=info, confidence>0.85, seen before
-Tier 2 — SLACK REVIEW: severity=warning, confidence 0.60-0.85, or new pattern
-Tier 3 — HUMAN OVERRIDE: severity=critical, confidence<0.60, or investor update
+Tier 1 — AUTO: severity=info, confidence>0.85
+Tier 2 — REVIEW: severity=warning, confidence<0.85, or new pattern
+Tier 3 — APPROVE: severity=critical, confidence<0.60, or investor update
+
+Adds resolve_suggested_tools() to surface tools that match the routing tier.
 """
 from __future__ import annotations
 
-# Guardrail state mapping (NEW — additive)
+from src.agents.tools import get_tools_for_patterns
+
 GUARDRAIL_STATE_MAP = {
     "auto": "informational",
     "review": "advisory",
     "approve": "reviewable",
 }
-# "blocked" is set explicitly by guardrail engine, not derived from HITL
 
 
 class HITLManager:
@@ -75,3 +77,17 @@ class HITLManager:
             is_new_pattern=is_new_pattern,
             is_investor_update=is_investor_update,
         )
+
+    def resolve_suggested_tools(
+        self,
+        triggered_patterns: list[str],
+        tier: str | None = None,
+    ) -> list[dict[str, str]]:
+        """Find registered tools matching triggered patterns and HITL tier."""
+        candidates = get_tools_for_patterns(triggered_patterns)
+        if tier is not None:
+            candidates = [t for t in candidates if t.hitl_tier == tier]
+        return [
+            {"name": t.name, "description": t.description, "hitl_tier": t.hitl_tier}
+            for t in candidates
+        ]

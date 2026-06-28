@@ -66,6 +66,44 @@ func Render(c *fiber.Ctx, name string, data interface{}) error {
 - **Workflow result**: `run.Get(ctx, &result)` where result is `map[string]interface{}`
 - **Task queue**: `"TRACKGUARD-MAIN-QUEUE"`
 
+### SSEHub Event Subscription Pattern
+
+The SSEHub replaces raw `chatBroadcast` channels for new SSE endpoints. Pattern:
+
+```go
+// Subscribe with event type filter (e.g., only "chat" events)
+sub := h.sseHub.Subscribe(tenantID, "chat")
+
+// Or subscribe to multiple event types
+sub := h.sseHub.Subscribe(tenantID, "mission", "hitl")
+
+// Or subscribe to all events (no filter)
+sub := h.sseHub.Subscribe(tenantID)
+sub := h.sseHub.Subscribe(tenantID) // empty eventTypes = all events
+
+// Always unsubscribe in deferred cleanup
+defer h.sseHub.Unsubscribe(tenantID, sub.ID)
+
+// Read from subscriber's channel in SetBodyStreamWriter
+c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+    for {
+        select {
+        case msgBytes, ok := <-sub.Channel:
+            if !ok { return }
+            fmt.Fprintf(w, "%s", msgBytes)
+            w.Flush()
+        case <-done:
+            return
+        }
+    }
+})
+```
+
+- `SSEEvent.Type` determines routing — subscribers with matching `Types` filter receive the event
+- Empty `Types` = receive all events for tenant
+- Per-subscriber channel buffer: 64 (vs legacy `chatBroadcast` shared buffer of 100)
+- `Broadcast()` uses non-blocking `select/default` per subscriber — a slow consumer drops their own events without affecting others
+
 ### Concurrency Safety
 
 - `sync.WaitGroup` for goroutine tracking (workflow dispatch, graceful shutdown)
@@ -136,6 +174,80 @@ with workflow.unsafe.imports_passed_through():
 | Async DB | `asyncpg` | Synchronous drivers |
 | Logging | `structlog` | `print()` |
 | Debugging | `ic` (icecream) | `print()` |
+
+### Tool Creation Pattern (ToolDef)
+
+Each tool is a standalone module in `apps/ai/src/agents/tools/` with a `tool_def` dict and an async `execute` function:
+
+```python
+"""Tool: <name> — HITL Tier: <tier>.
+
+Description of what the tool does and when it triggers.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+log = logging.getLogger(__name__)
+
+tool_def: dict[str, Any] = {
+    "name": "my_tool_name",                    # snake_case unique name
+    "description": "Human-readable description",
+    "hitl_tier": "review",                     # auto | review | approve | blocked
+    "trigger_patterns": ["FG-05", "BG-04"],    # alert pattern IDs
+}
+
+async def execute(tenant_id: str, **kwargs) -> dict[str, Any]:
+    """Execute tool logic.
+
+    Args:
+        tenant_id: Tenant identifier.
+        **kwargs: Tool-specific parameters.
+
+    Returns:
+        Dict with tool result fields.
+    """
+    log.info("my_tool_name %s — tier=%s", tenant_id, tool_def["hitl_tier"])
+    # Tool implementation
+    return {"status": "done", "tenant_id": tenant_id}
+```
+
+After creating the module, register it in `__init__.py`:
+
+```python
+from . import my_tool_module
+
+register_tool(ToolDef(**my_tool_module.tool_def, fn=my_tool_module.execute))
+```
+
+- `hitl_tier` must match one of the strings from `HITLManager.route()`: `"auto"`, `"review"`, `"approve"`, `"blocked"`
+- `trigger_patterns` reference alert pattern IDs (FG-xx, BG-xx, etc.)
+- Tools auto-register on import via `register_tool()`
+
+### ACE Loop Wiring Pattern
+
+Button interactions in Slack route through the ACE (Acknowledge-Consequence-Evaluate) loop via `slack_buttons.py`:
+
+```python
+# In button handler:
+def _handle_acknowledged(alert_id: str) -> ButtonResult:
+    _send_feedback_signal(alert_id, "acknowledged", 1.0)  # +1.0 trust signal
+    return ButtonResult(success=True, action="acknowledge", ...)
+
+# Signal wiring (skip in test):
+def _send_feedback_signal(alert_id, response_type, score):
+    if "pytest" in sys.modules:  # skip during unit tests
+        return
+    from src.agents.cofounder.reflector import score_from_button
+    score_from_button(alert_id, response_type, score)
+    from src.agents.cofounder.curator import update_strategy_confidence
+    update_strategy_confidence(tenant_id, domain, response_type, score)
+```
+
+- Button actions: `acknowledge` (+1.0), `dispute` (-1.0), `show_breakdown`, `log_decision`
+- ACE loop: Button click → Reflector scores → Curator updates strategy confidence
+- Test guard: `if "pytest" in sys.modules` prevents async blocking in test envs
 
 ### Temporal Workflow Pattern
 

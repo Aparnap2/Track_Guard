@@ -10,7 +10,7 @@ services:
       - "8001:8001"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - GROQ_CHAT_MODEL=${GROQ_CHAT_MODEL:-qwen/qwen3-32b}
+      - GROQ_CHAT_MODEL=${GROQ_CHAT_MODEL:-llama-3.3-70b-versatile}
       - DATABASE_URL=postgresql://iterateswarm:iterateswarm@host.docker.internal:5432/iterateswarm
       - REDIS_URL=redis://host.docker.internal:6379
       - QDRANT_URL=http://host.docker.internal:6333

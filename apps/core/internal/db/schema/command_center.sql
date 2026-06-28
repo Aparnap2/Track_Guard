@@ -61,3 +61,15 @@ CREATE TABLE IF NOT EXISTS agent_traces (
 CREATE INDEX IF NOT EXISTS idx_agent_traces_tenant ON agent_traces(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_agent_traces_agent ON agent_traces(agent_name);
 CREATE INDEX IF NOT EXISTS idx_agent_traces_created ON agent_traces(created_at DESC);
+
+-- Chat messages (from command center agent chat)
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id VARCHAR(100) DEFAULT 'default',
+    sender VARCHAR(50) NOT NULL DEFAULT 'founder',
+    mention VARCHAR(50),
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);

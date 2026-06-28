@@ -12,6 +12,6 @@ Finance Guardian watches for:
 
 Each agent reads MissionState, writes domain fields, implements Generator→Reflector→Curator.
 """
-from .graph import FinanceGuardianGraph
+from .graph import FinanceGuardianGraph, FinanceGraph
 
-__all__ = ["FinanceGuardianGraph"]
+__all__ = ["FinanceGuardianGraph", "FinanceGraph"]

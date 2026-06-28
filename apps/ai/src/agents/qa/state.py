@@ -1,13 +1,14 @@
-"""QA state - stub for V3.0."""
+"""QA state for LangGraph."""
 from typing import TypedDict
 
 
 class QAState(TypedDict, total=False):
     tenant_id: str
-    metrics: dict
+    question: str
+    matched_category: str
+    data_context: str
     memory_context: str
-    draft: str
-    narrative: str
+    answer: str
     slack_message: str
     slack_blocks: list
     error: str

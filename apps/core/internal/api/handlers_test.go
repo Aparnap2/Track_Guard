@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -453,6 +454,10 @@ func TestRateLimiter_OnePastLimit(t *testing.T) {
 
 func TestRateLimiter_ConcurrentExhaustion(t *testing.T) {
 	// go test -race -run TestRateLimiter_ConcurrentExhaustion
+	if os.Getenv("CI") == "" {
+		t.Skip("timing-sensitive: run explicitly in CI with -count=1")
+	}
+
 	app, _ := setupTestApp(t)
 
 	var (

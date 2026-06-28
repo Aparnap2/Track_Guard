@@ -11,7 +11,7 @@ import (
 
 func TestOnboardingStatus_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/onboarding", h.APIOnboardingStatus)
@@ -40,7 +40,7 @@ func TestOnboardingStatus_ReturnsHTMXPartialOnHXRequest(t *testing.T) {
 
 func TestOnboardingStatus_ShowsConnectedIntegrations(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/onboarding", h.APIOnboardingStatus)
@@ -66,7 +66,7 @@ func TestOnboardingStatus_ShowsConnectedIntegrations(t *testing.T) {
 
 func TestOnboardingStatus_ShowsFirstAlertGate(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 
 	apiGroup := app.Group("/api")
 	apiGroup.Get("/htmx/onboarding", h.APIOnboardingStatus)

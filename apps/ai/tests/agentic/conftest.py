@@ -24,7 +24,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 # real-LLM tests to fail with 401.
 _REAL_GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 _REAL_GROQ_CHAT_MODEL = os.environ.get(
-    "GROQ_CHAT_MODEL", os.environ.get("LLM_MODEL", "qwen/qwen3-32b")
+    "GROQ_CHAT_MODEL", os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile")
 )
 _REAL_GROQ_BASE_URL = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 _REAL_GROQ_REASONING_EFFORT = os.environ.get("GROQ_REASONING_EFFORT", "none")
@@ -49,8 +49,9 @@ class _OllamaChatAdapter:
             "messages": messages,
             "max_tokens": options.get("num_predict", 500),
             "temperature": options.get("temperature", 0.0),
-            "reasoning_effort": self._reasoning_effort,
         }
+        if self._reasoning_effort and self._reasoning_effort != "none":
+            kwargs["reasoning_effort"] = self._reasoning_effort
         if options.get("json_mode"):
             kwargs["response_format"] = {"type": "json_object"}
         response = self._client.chat.completions.create(**kwargs)

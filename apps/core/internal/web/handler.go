@@ -2,14 +2,22 @@ package web
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
+	"html"
 	"html/template"
+	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	temporalclient "go.temporal.io/sdk/client"
+
+	"iterateswarm-core/internal/temporal"
 )
 
 //go:embed templates
@@ -17,7 +25,38 @@ var templatesFS embed.FS
 
 // Render renders a template with data
 func Render(c *fiber.Ctx, name string, data interface{}) error {
-	tmpl, err := template.ParseFS(templatesFS, "templates/"+name+".html")
+	tmpl := template.New(name).Funcs(template.FuncMap{
+		"upper": strings.ToUpper,
+		"first": func(s string) string {
+			if len(s) > 0 {
+				return string(s[0])
+			}
+			return ""
+		},
+		"displayName": func(sender string) string {
+			switch sender {
+			case "founder":
+				return "You"
+			case "sarthi":
+				return "Sarthi (Manager)"
+			case "finance":
+				return "Finance (Analyst)"
+			case "data":
+				return "Data (Analyst)"
+			case "ops":
+				return "Ops (Analyst)"
+			case "all":
+				return "Everyone"
+			default:
+				return strings.Title(sender)
+			}
+		},
+	})
+	content, err := templatesFS.ReadFile("templates/" + name + ".html")
+	if err != nil {
+		return fmt.Errorf("failed to read template %s: %w", name, err)
+	}
+	tmpl, err = tmpl.Parse(string(content))
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", name, err)
 	}
@@ -28,13 +67,31 @@ func Render(c *fiber.Ctx, name string, data interface{}) error {
 
 // Handler struct for web routes
 type Handler struct {
-	db *sql.DB
+	db            *sql.DB
+	chatBroadcast chan fiber.Map
+	temporal      *temporal.Client
+	wg            sync.WaitGroup
+	sseHub        *SSEHub
 }
 
 // NewHandler creates a new web handler
-func NewHandler(db *sql.DB) *Handler {
+func NewHandler(db *sql.DB, temporalClient *temporal.Client) *Handler {
+	if db != nil {
+		db.Exec(`CREATE TABLE IF NOT EXISTS chat_messages (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			tenant_id VARCHAR(100) DEFAULT 'default',
+			sender VARCHAR(50) NOT NULL DEFAULT 'founder',
+			mention VARCHAR(50),
+			message TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT NOW()
+		)`)
+		db.Exec(`CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC)`)
+	}
 	return &Handler{
-		db: db,
+		db:            db,
+		chatBroadcast: make(chan fiber.Map, 100),
+		temporal:      temporalClient,
+		sseHub:        NewSSEHub(),
 	}
 }
 
@@ -72,7 +129,7 @@ func (h *Handler) HandleFeedback(c *fiber.Ctx) error {
 
 	// For now, return a simple success message
 	// TODO: Integrate with actual feedback processing
-	return c.SendString(`<div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center"><i class="fas fa-check-circle mr-2"></i>Feedback received: ` + req.Content[:50] + `...</div>`)
+	return c.SendString(`<div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center"><i class="fas fa-check-circle mr-2"></i>Feedback received: ` + safePreview(req.Content, 50) + `</div>`)
 }
 
 // HandleStats returns system stats for HTMX polling
@@ -903,6 +960,80 @@ func (h *Handler) APICommandMissionState(c *fiber.Ctx) error {
 	})
 }
 
+// APICommandMissionStateUpdate accepts mission state data via POST and upserts into mission_state table.
+// Returns the updated mission state HTML partial for HTMX swap.
+func (h *Handler) APICommandMissionStateUpdate(c *fiber.Ctx) error {
+	var input struct {
+		TenantID        string   `json:"tenant_id"`
+		MRR             *float64 `json:"mrr"`
+		BurnRate        *float64 `json:"burn_rate"`
+		RunwayDays      *int     `json:"runway_days"`
+		BurnAlert       *bool    `json:"burn_alert"`
+		BurnSeverity    *string  `json:"burn_severity"`
+		MRRTrend        *string  `json:"mrr_trend"`
+		ChurnRate       *float64 `json:"churn_rate"`
+		ErrorSpike      *bool    `json:"error_spike"`
+		ActiveAlerts    *string  `json:"active_alerts"`
+		FounderFocus    *string  `json:"founder_focus"`
+		TrustScore      *int     `json:"trust_score"`
+		BurnMultiple    *float64 `json:"burn_multiple"`
+		EffectiveRunway *int     `json:"effective_runway_days"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		log.Printf("Failed to parse mission state update: %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON"})
+	}
+
+	if h.db != nil {
+		result, err := h.db.Exec(`
+			UPDATE mission_state SET
+				mrr = COALESCE($2, mission_state.mrr),
+				burn_rate = COALESCE($3, mission_state.burn_rate),
+				runway_days = COALESCE($4, mission_state.runway_days),
+				burn_alert = COALESCE($5, mission_state.burn_alert),
+				burn_severity = COALESCE($6, mission_state.burn_severity),
+				mrr_trend = COALESCE($7, mission_state.mrr_trend),
+				churn_rate = COALESCE($8, mission_state.churn_rate),
+				error_spike = COALESCE($9, mission_state.error_spike),
+				active_alerts = COALESCE($10, mission_state.active_alerts),
+				founder_focus = COALESCE($11, mission_state.founder_focus),
+				trust_score = COALESCE($12, mission_state.trust_score),
+				burn_multiple = COALESCE($13, mission_state.burn_multiple),
+				effective_runway_days = COALESCE($14, mission_state.effective_runway_days),
+				updated_at = NOW()
+			WHERE tenant_id = $1
+		`, input.TenantID, input.MRR, input.BurnRate, input.RunwayDays,
+			input.BurnAlert, input.BurnSeverity, input.MRRTrend, input.ChurnRate,
+			input.ErrorSpike, input.ActiveAlerts, input.FounderFocus, input.TrustScore,
+			input.BurnMultiple, input.EffectiveRunway)
+		if err != nil {
+			log.Printf("Failed to update mission state: %v", err)
+		} else {
+			rows, _ := result.RowsAffected()
+			if rows == 0 {
+				// No existing row — insert
+				_, insertErr := h.db.Exec(`
+					INSERT INTO mission_state (
+						tenant_id, mrr, burn_rate, runway_days, burn_alert,
+						burn_severity, mrr_trend, churn_rate, error_spike,
+						active_alerts, founder_focus, trust_score, burn_multiple,
+						effective_runway_days
+					) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				`, input.TenantID, input.MRR, input.BurnRate, input.RunwayDays,
+					input.BurnAlert, input.BurnSeverity, input.MRRTrend, input.ChurnRate,
+					input.ErrorSpike, input.ActiveAlerts, input.FounderFocus, input.TrustScore,
+					input.BurnMultiple, input.EffectiveRunway)
+				if insertErr != nil {
+					log.Printf("Failed to insert mission state: %v", insertErr)
+				}
+			}
+		}
+	}
+
+	return h.APICommandMissionState(c)
+}
+
 // APICommandWatchlist returns watchlist items
 func (h *Handler) APICommandWatchlist(c *fiber.Ctx) error {
 	if c.Get("HX-Request") != "true" {
@@ -1081,6 +1212,28 @@ func (h *Handler) APICommandApprovalAction(c *fiber.Ctx) error {
 	id := c.Params("id")
 	action := c.Params("action")
 
+	// Look up the Temporal workflow ID from the planned_actions table
+	workflowID := id // fallback to the URL param
+	if h.db != nil {
+		var temporalWorkflowID string
+		err := h.db.QueryRow(
+			`SELECT temporal_workflow_id FROM planned_actions WHERE id = $1`,
+			id,
+		).Scan(&temporalWorkflowID)
+		if err == nil && temporalWorkflowID != "" {
+			workflowID = temporalWorkflowID
+		}
+	}
+
+	// Signal Temporal workflow on approval to unblock HITL gate
+	if action == "approve" && h.temporal != nil && h.temporal.Client != nil {
+		sigCtx, sigCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer sigCancel()
+		if err := h.temporal.SignalWorkflow(sigCtx, workflowID, "hitl-approval", true); err != nil {
+			log.Printf("ERROR: Failed to signal workflow %s for approval: %v", workflowID, err)
+		}
+	}
+
 	if h.db != nil {
 		var newStatus string
 		switch action {
@@ -1159,13 +1312,216 @@ func (h *Handler) APICommandChatSend(c *fiber.Ctx) error {
 		return c.SendString("")
 	}
 
-	// With DB: return JSON with parsed message
-	return c.JSON(fiber.Map{
-		"status":   "ok",
-		"message":  message,
-		"mention":  mention,
-		"mentions": unique,
-	})
+	// With DB: persist message, broadcast via SSE, and return JSON
+	var createdAt time.Time
+	err := h.db.QueryRow(
+		`INSERT INTO chat_messages (sender, mention, message) VALUES ('founder', $1, $2) RETURNING created_at`,
+		mention, message,
+	).Scan(&createdAt)
+	if err == nil {
+		h.chatBroadcast <- fiber.Map{
+			"sender":      "founder",
+			"displayName": "You",
+			"text":        message,
+			"time":        createdAt.Format("15:04:05"),
+		}
+	}
+
+	// Specialist workflow routing: map mention → workflow type + display name
+	type specialistRoute struct {
+		workflowType string
+		displayName  string
+	}
+
+	var specialistRoutes = map[string]specialistRoute{
+		"@sarthi":  {"QAWorkflow", "Sarthi"},
+		"@agent":   {"QAWorkflow", "Sarthi"},
+		"@qa":      {"QAWorkflow", "Sarthi"},
+		"@ask":     {"QAWorkflow", "Sarthi"},
+		"@finance": {"FinanceWorkflow", "Finance"},
+		"@data":    {"DataWorkflow", "Data"},
+		"@ops":     {"OpsWorkflow", "Ops"},
+		"@comms":   {"CommsWorkflow", "Comms"},
+		"@hiring":  {"HiringWorkflow", "Hiring"},
+	}
+
+	shouldDispatch := false
+	mentionTarget := ""
+	route := specialistRoute{}
+	for _, m := range unique {
+		m = strings.ToLower(m)
+		if r, ok := specialistRoutes[m]; ok {
+			shouldDispatch = true
+			mentionTarget = m
+			route = r
+			break
+		}
+	}
+	// Dispatch QA workflow asynchronously via Temporal
+	if shouldDispatch && h.temporal != nil {
+		workflowID := fmt.Sprintf("chat-qa-%s-%d", strings.ReplaceAll(c.IP(), ":", ""), time.Now().UnixNano())
+
+		input := map[string]interface{}{
+			"tenant_id":      "default",
+			"question":       message,
+			"notify_channel": "#chat",
+		}
+
+		// Show "thinking" indicator immediately via SSE (non-blocking)
+		h.tryBroadcast(mentionTarget, route.displayName, "🤔 Thinking...")
+
+		// Dispatch workflow in background goroutine — result pushes via SSE when ready
+		h.wg.Add(1)
+		go func(handler *Handler, wID, target string, r specialistRoute, in map[string]interface{}, reqCtx context.Context) {
+			defer handler.wg.Done()
+
+			// Merge request context with longer timeout
+			ctx, cancel := context.WithTimeout(reqCtx, 5*time.Minute)
+			defer cancel()
+
+			opts := temporalclient.StartWorkflowOptions{
+				ID:        wID,
+				TaskQueue: "TRACKGUARD-MAIN-QUEUE",
+			}
+
+			run, err := handler.temporal.Client.ExecuteWorkflow(ctx, opts, r.workflowType, in)
+			if err != nil {
+				log.Printf("Failed to start QA workflow: %v", err)
+				return
+			}
+
+			log.Printf("QA workflow started: id=%s", wID)
+
+			var result map[string]interface{}
+			if getErr := run.Get(ctx, &result); getErr != nil {
+				log.Printf("QA workflow failed: %v", getErr)
+				handler.tryBroadcast(target, r.displayName, fmt.Sprintf("❌ Sorry, I couldn't process your question: %v", getErr))
+				return
+			}
+
+			ok, _ := result["ok"].(bool)
+			qaResult, _ := result["qa_result"].(map[string]interface{})
+			answer := ""
+			if qaResult != nil {
+				answer, _ = qaResult["answer"].(string)
+			}
+			if answer == "" {
+				answer, _ = qaResult["output_message"].(string)
+			}
+			if answer == "" {
+				answer, _ = result["error"].(string)
+			}
+			if answer == "" {
+				answer = "I processed your question but couldn't generate an answer."
+			}
+
+			log.Printf("QA workflow result: ok=%v answer=%s", ok, answer[:min(len(answer), 200)])
+
+			// Persist to DB
+			var agentCreatedAt time.Time
+			if handler.db != nil {
+				if err := handler.db.QueryRow(
+					`INSERT INTO chat_messages (sender, mention, message) VALUES ('agent', $1, $2) RETURNING created_at`,
+					"@founder", answer,
+				).Scan(&agentCreatedAt); err != nil {
+					log.Printf("Failed to persist agent response: %v", err)
+				}
+			}
+
+			handler.tryBroadcast("agent", r.displayName, answer)
+		}(h, workflowID, mentionTarget, route, input, context.Background())
+	}
+
+	// Return the user message bubble as HTML so HTMX can append it to #chat-messages.
+	// The form uses hx-target="#chat-messages" hx-swap="beforeend" to append this.
+	userDisplayName := "You"
+	timeStr := createdAt.Format("15:04:05")
+	return c.SendString(h.renderChatBubble("founder", userDisplayName, message, timeStr))
+}
+
+// renderChatBubble builds an HTML string for a single chat message bubble.
+// This is used by the SSE endpoint to send HTML fragments that HTMX swaps directly.
+func (h *Handler) renderChatBubble(sender, displayName, text, timeStr string) string {
+	// Normalize sender key for CSS class lookup
+	normalized := strings.TrimPrefix(sender, "@")
+
+	agentClasses := map[string]string{
+		"founder": "bg-blue-500/20 text-blue-400",
+		"sarthi":  "agent-sarthi",
+		"finance": "agent-finance",
+		"data":    "agent-data",
+		"ops":     "agent-ops",
+		"agent":   "agent-system",
+	}
+	agentClass := agentClasses[normalized]
+	if agentClass == "" {
+		agentClass = "agent-system"
+	}
+
+	initials := map[string]string{
+		"founder": "Y", "sarthi": "S", "finance": "F", "data": "D", "ops": "O", "agent": "A",
+	}
+	initial := initials[normalized]
+	if initial == "" && len(normalized) > 0 {
+		initial = strings.ToUpper(string(normalized[0]))
+	} else if initial == "" {
+		initial = "?"
+	}
+
+	if timeStr == "" {
+		timeStr = time.Now().Format("15:04:05")
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString(`<div class="chat-msg flex gap-2 mb-2">`)
+	buf.WriteString(`<div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 `)
+	buf.WriteString(agentClass)
+	buf.WriteString(`">`)
+	buf.WriteString(initial)
+	buf.WriteString(`</div>`)
+	buf.WriteString(`<div class="flex-1 min-w-0">`)
+	buf.WriteString(`<div class="flex items-baseline gap-2">`)
+	buf.WriteString(`<span class="text-xs font-semibold" style="color:var(--text)">`)
+	buf.WriteString(html.EscapeString(displayName))
+	buf.WriteString(`</span>`)
+	buf.WriteString(`<span class="text-[10px]" style="color:var(--text-muted)">`)
+	buf.WriteString(html.EscapeString(timeStr))
+	buf.WriteString(`</span></div>`)
+	buf.WriteString(`<p class="text-xs mt-0.5" style="color:var(--text-secondary);word-break:break-word">`)
+	buf.WriteString(html.EscapeString(text))
+	buf.WriteString(`</p></div></div>`)
+	return buf.String()
+}
+
+// tryBroadcast sends a message to chatBroadcast without blocking.
+func (h *Handler) tryBroadcast(sender, displayName, text string) {
+	msg := fiber.Map{
+		"sender":      sender,
+		"displayName": displayName,
+		"text":        text,
+		"time":        time.Now().Format("15:04:05"),
+	}
+	select {
+	case h.chatBroadcast <- msg:
+	default:
+		log.Printf("chatBroadcast channel full, dropping message from %s", sender)
+	}
+	// Also broadcast via SSEHub for fan-out support
+	if h.sseHub != nil {
+		h.sseHub.Broadcast("default", SSEEvent{
+			Type:    "chat",
+			Payload: fmt.Sprintf("%s|%s|%s|%s", sender, displayName, text, time.Now().Format("15:04:05")),
+		})
+	}
+}
+
+// safePreview safely truncates a string to max runes, appending "..." if truncated
+func safePreview(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "..."
 }
 
 // extractMentions finds @mentions in a message string
@@ -1181,42 +1537,78 @@ func extractMentions(msg string) []string {
 	return mentions
 }
 
-// APICommandEvents is the SSE endpoint for streaming real-time events to the command center
+// APICommandEvents is the SSE endpoint for the dashboard connection indicator (heartbeats only)
 func (h *Handler) APICommandEvents(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 
+	done := c.Context().Done()
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		// Send initial connection event
-		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to command center\"}\n\n")
+		defer func() { recover() }()
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\"}\n\n")
 		w.Flush()
 
-		// Heartbeat ticker
 		heartbeat := time.NewTicker(30 * time.Second)
 		defer heartbeat.Stop()
-
-		// Simulated system events (in production, these come from a pub/sub bus)
-		systemTicker := time.NewTicker(60 * time.Second)
-		defer systemTicker.Stop()
 
 		for {
 			select {
 			case <-heartbeat.C:
-				fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				_, err := fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				if err != nil {
+					return
+				}
 				w.Flush()
-			case <-systemTicker.C:
-				now := time.Now().Format("15:04:05")
-				systemEvents := []string{
-					fmt.Sprintf("MissionState refreshed at %s", now),
-					"Agent fleet health check complete",
-					"Watchlist evaluation cycle finished",
+			case <-done:
+				return
+			}
+		}
+	})
+
+	return nil
+}
+
+// APICommandChatEvents is a dedicated SSE endpoint for chat messages.
+// It sends HTML fragments instead of JSON so HTMX's SSE extension can
+// swap them directly into the DOM (via sse-swap="chat" + hx-swap="beforeend").
+func (h *Handler) APICommandChatEvents(c *fiber.Ctx) error {
+	tenantID := c.Query("tenant_id", "default")
+	subID, ch := h.sseHub.Subscribe(tenantID)
+	defer h.sseHub.Unsubscribe(tenantID, subID)
+
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+
+	done := c.Context().Done()
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() { recover() }()
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"text\":\"Connected to chat\"}\n\n")
+		w.Flush()
+
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
+		for {
+			select {
+			case <-heartbeat.C:
+				_, err := fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				if err != nil {
+					return
 				}
-				for _, evt := range systemEvents {
-					fmt.Fprintf(w, "event: system\ndata: {\"type\":\"system\",\"text\":%q}\n\n", evt)
-					w.Flush()
+				w.Flush()
+			case msgBytes, ok := <-ch:
+				if !ok {
+					return
 				}
-			case <-c.Context().Done():
+				_, err := fmt.Fprintf(w, "%s", msgBytes)
+				if err != nil {
+					return
+				}
+				w.Flush()
+			case <-done:
 				return
 			}
 		}
@@ -1297,6 +1689,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	app.Get("/api/command/status", h.APICommandStatus)
 	app.Get("/api/command/kpis", h.APICommandKPIs)
 	app.Get("/api/command/mission-state", h.APICommandMissionState)
+	app.Post("/api/command/mission-state/update", h.APICommandMissionStateUpdate)
 	app.Get("/api/command/watchlist", h.APICommandWatchlist)
 	app.Get("/api/command/agent-fleet", h.APICommandAgentFleet)
 	app.Get("/api/command/timeline", h.APICommandTimeline)
@@ -1305,11 +1698,90 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	app.Get("/api/command/metrics", h.APICommandMetrics)
 	app.Get("/api/command/chart-data", h.APICommandChartData)
 	app.Post("/api/command/chat/send", h.APICommandChatSend)
+	app.Get("/api/command/chat/events", h.APICommandChatEvents)
 	app.Get("/api/command/stream", h.APICommandEvents)
 	app.Get("/api/command/events", h.APICommandEvents)
 
-	// Chat panel partial (loads the chat HTML with EventSource)
+	// Chat panel partial — loads the chat HTML with HTMX SSE extension
 	app.Get("/api/command/chat", func(c *fiber.Ctx) error {
-		return Render(c, "partials/command_chat", nil)
+		type ChatMsg struct {
+			Sender      string
+			Text        string
+			Time        string
+			DisplayName string
+			Initial     string
+			AgentClass  string
+		}
+
+		messages := []ChatMsg{}
+		if h.db != nil {
+			rows, err := h.db.Query(`SELECT sender, mention, message, created_at FROM chat_messages ORDER BY created_at DESC LIMIT 50`)
+			if err == nil {
+				defer rows.Close()
+				for rows.Next() {
+					var sender, message string
+					var mention sql.NullString
+					var createdAt time.Time
+					if err := rows.Scan(&sender, &mention, &message, &createdAt); err != nil {
+						continue
+					}
+
+					// Compute display fields matching renderChatBubble
+					displayName := sender
+					switch sender {
+					case "founder":
+						displayName = "You"
+					case "sarthi", "agent":
+						displayName = "Sarthi (Manager)"
+					case "finance":
+						displayName = "Finance (Analyst)"
+					case "data":
+						displayName = "Data (Analyst)"
+					case "ops":
+						displayName = "Ops (Analyst)"
+					}
+
+					normalized := strings.TrimPrefix(sender, "@")
+					initials := map[string]string{
+						"founder": "Y", "sarthi": "S", "finance": "F", "data": "D", "ops": "O", "agent": "A",
+					}
+					initial := initials[normalized]
+					if initial == "" && len(normalized) > 0 {
+						initial = strings.ToUpper(string(normalized[0]))
+					}
+
+					agentClasses := map[string]string{
+						"founder": "bg-blue-500/20 text-blue-400",
+						"sarthi":  "agent-sarthi",
+						"finance": "agent-finance",
+						"data":    "agent-data",
+						"ops":     "agent-ops",
+						"agent":   "agent-system",
+					}
+					agentClass := agentClasses[normalized]
+					if agentClass == "" {
+						agentClass = "agent-system"
+					}
+
+					messages = append(messages, ChatMsg{
+						Sender:      sender,
+						Text:        message,
+						Time:        createdAt.Format("15:04:05"),
+						DisplayName: displayName,
+						Initial:     initial,
+						AgentClass:  agentClass,
+					})
+				}
+			}
+		}
+
+		// Reverse so they display oldest-first
+		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+			messages[i], messages[j] = messages[j], messages[i]
+		}
+
+		return Render(c, "partials/command_chat", fiber.Map{
+			"Messages": messages,
+		})
 	})
 }

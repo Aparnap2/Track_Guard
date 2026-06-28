@@ -1,11 +1,30 @@
-<div class="space-y-1">
-{{range .Events}}
-    <div class="flex items-start gap-3 py-2 border-b last:border-0">
-        <span class="text-xs font-mono text-gray-400 w-12">{{.Time}}</span>
-        <div>
-            <span class="text-sm font-medium">{{.Title}}</span>
-            <p class="text-xs text-gray-500">{{.Description}}</p>
-        </div>
+<div class="fade-in">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm md:text-base">Recent Activity</h3>
+        <span class="text-[10px] md:text-xs flex items-center gap-1.5" style="color:var(--text-muted)">
+            <span class="status-dot connected" style="width:6px;height:6px"></span>
+            Updating live
+        </span>
     </div>
-{{end}}
+    <div class="space-y-0.5 max-h-[320px] overflow-y-auto">
+    {{range .Events}}
+        <div class="flex items-start gap-3 py-2.5 px-2 rounded-lg transition-colors duration-150 hover:bg-white/[0.02]" style="border-bottom:1px solid rgba(255,255,255,0.04)">
+            <span class="text-[11px] font-mono flex-shrink-0 w-10 pt-0.5" style="color:var(--text-muted)">{{.Time}}</span>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-medium" style="color:var(--text)">{{.Title}}</span>
+                </div>
+                {{if .Description}}
+                <p class="text-xs mt-0.5 truncate" style="color:var(--text-secondary)">{{.Description}}</p>
+                {{end}}
+            </div>
+            <span class="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style="background:var(--accent-green);box-shadow:0 0 6px rgba(52,211,153,0.4)"></span>
+        </div>
+    {{else}}
+        <div class="text-xs py-8 text-center" style="color:var(--text-muted)">
+            <svg class="w-6 h-6 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            No recent events — activity will appear here as agents take actions
+        </div>
+    {{end}}
+    </div>
 </div>

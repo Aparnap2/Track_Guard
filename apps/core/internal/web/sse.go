@@ -1,9 +1,11 @@
 package web
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,46 +31,71 @@ func NewSSEHandler(db *sql.DB) *SSEHandler {
 	return &SSEHandler{db: db}
 }
 
-// HandleSSE streams agent events via Server-Sent Events using PostgreSQL LISTEN/NOTIFY
+// HandleSSE streams agent events via Server-Sent Events
 func (h *SSEHandler) HandleSSE(c *fiber.Ctx) error {
-	// Set SSE headers
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
-	c.Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	c.Set("X-Accel-Buffering", "no")
 
-	// Listen for PostgreSQL NOTIFY events
-	// This requires a separate connection for LISTEN
-	listenConn, err := h.db.Conn(c.Context())
-	if err != nil {
-		return c.Status(500).SendString("Failed to establish database connection")
-	}
-	defer listenConn.Close()
-
-	// Start listening on the 'agent_events' channel
-	_, err = listenConn.ExecContext(c.Context(), "LISTEN agent_events")
-	if err != nil {
-		return c.Status(500).SendString("Failed to listen for events")
-	}
-
-	// Poll for notifications
-	ticker := time.NewTicker(100 * time.Millisecond)
+	done := c.Context().Done()
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	notifyChan := make(chan string, 10)
 
-	for {
-		select {
-		case <-c.Context().Done():
-			return nil
-		case <-ticker.C:
-			// Check for notifications
-			var notification []byte
-			err := listenConn.QueryRowContext(c.Context(), "SELECT pg_notify('agent_events', '{}')").Scan(&notification)
-			if err != nil {
-				// Continue on error
-				continue
+	if h.db != nil {
+		go func() {
+			defer close(notifyChan)
+			pollTicker := time.NewTicker(3 * time.Second)
+			defer pollTicker.Stop()
+			var lastCheck time.Time
+			for {
+				select {
+				case <-pollTicker.C:
+					rows, err := h.db.Query(`SELECT event_type FROM agent_events WHERE created_at > $1 ORDER BY created_at ASC LIMIT 10`, lastCheck)
+					if err == nil {
+						var events []string
+						for rows.Next() {
+							var et string
+							rows.Scan(&et)
+							events = append(events, et)
+						}
+						rows.Close()
+						if len(events) > 0 {
+							data, _ := json.Marshal(map[string]interface{}{"events": events, "count": len(events)})
+							notifyChan <- string(data)
+						}
+					}
+					lastCheck = time.Now()
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+
+	c.Response().SetBodyStreamWriter(func(w *bufio.Writer) {
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\"}\n\n")
+		w.Flush()
+
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Fprintf(w, "event: heartbeat\ndata: {}\n\n")
+				w.Flush()
+			case data, ok := <-notifyChan:
+				if !ok {
+					return
+				}
+				fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
+				w.Flush()
+			case <-done:
+				return
 			}
 		}
-	}
+	})
+
+	return nil
 }
 
 // PublishAgentEvent publishes an agent event to PostgreSQL

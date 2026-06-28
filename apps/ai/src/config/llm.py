@@ -50,8 +50,8 @@ class LLMCallResult:
 
 # Pricing per 1M tokens — update as providers adjust rates
 _MODEL_PRICING: dict[str, dict[str, float]] = {
-    "qwen/qwen3-32b": {"input": 0.0, "output": 0.0},             # Groq free tier
     "llama-3.3-70b-versatile": {"input": 0.0, "output": 0.0},     # Groq free tier
+    "qwen/qwen3-32b": {"input": 0.0, "output": 0.0},             # Groq free tier (legacy)
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
@@ -141,7 +141,7 @@ def get_chat_model() -> str:
     if _is_groq():
         return os.environ.get(
             "GROQ_CHAT_MODEL",
-            os.environ.get("LLM_MODEL", "qwen/qwen3-32b"),
+            os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile"),
         )
     return os.environ.get(
         "OPENROUTER_LLM_MODEL",
@@ -179,10 +179,9 @@ def _build_kwargs(
         **extra,
     }
     if _is_groq():
-        kwargs.setdefault(
-            "reasoning_effort",
-            os.environ.get("GROQ_REASONING_EFFORT", "none"),
-        )
+        reasoning = os.environ.get("GROQ_REASONING_EFFORT", "")
+        if reasoning and reasoning != "none":
+            kwargs["reasoning_effort"] = reasoning
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     return kwargs
@@ -376,7 +375,7 @@ async def chat_completion_stream_async(
 
 
 def strip_reasoning(content: str) -> str:
-    """Remove Qwen3/Groq thinking blocks from model output."""
+    """Remove reasoning/thinking blocks from model output."""
     text = content.strip()
     open_think = "<" + "think" + ">"
     close_think = "</" + "think" + ">"

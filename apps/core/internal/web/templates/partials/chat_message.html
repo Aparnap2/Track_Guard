@@ -1,0 +1,10 @@
+<div class="chat-msg flex gap-2 mb-2">
+    <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 {{.AgentClass}}">{{.Initial}}</div>
+    <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-2">
+            <span class="text-xs font-semibold" style="color:var(--text)">{{.DisplayName}}</span>
+            <span class="text-[10px]" style="color:var(--text-muted)">{{.Time}}</span>
+        </div>
+        <p class="text-xs mt-0.5" style="color:var(--text-secondary);word-break:break-word">{{.Text}}</p>
+    </div>
+</div>

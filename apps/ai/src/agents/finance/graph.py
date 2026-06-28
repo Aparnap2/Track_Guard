@@ -108,7 +108,7 @@ class FinanceGuardianGraph:
     async def _decide_alert(self, mission_context: dict):
         """Phase 2: One small LLM call with Pydantic output."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             snapshot_json = json.dumps(self.state.financial_snapshot, default=str)
 
             prompt = (
@@ -154,7 +154,7 @@ class FinanceGuardianGraph:
     async def _generate_narrative(self):
         """Phase 3: Bounded narrative generation (max 200 words)."""
         try:
-            model = os.environ.get("GROQ_CHAT_MODEL", "qwen/qwen3-32b")
+            model = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
             decision = self.state.alert_decision
             snapshot_json = json.dumps(self.state.financial_snapshot, default=str)
 
@@ -243,3 +243,35 @@ class FinanceGuardianGraph:
                 "latency_ms": latency_ms,
                 "error": str(e),
             }
+
+
+@dataclass
+class FinanceGraph:
+    """Finance specialist agent — answers questions about burn rate, runway, revenue, etc.
+
+    This is a lightweight Q&A agent for @finance mentions, distinct from the
+    FinanceGuardianGraph which is a full guardian monitoring pipeline.
+    """
+
+    system_prompt: str = (
+        "You are a startup finance specialist. Answer questions about burn rate, "
+        "runway, revenue, expenses, cap table, and financial planning. "
+        "Be precise with numbers and caveat any assumptions."
+    )
+
+    async def invoke(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Answer a finance question via LLM."""
+        from src.config.llm import chat_completion
+
+        question = input_data.get("question", "")
+        tenant_id = input_data.get("tenant_id", "default")
+
+        response = await chat_completion(
+            messages=[
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": question},
+            ],
+            tenant_id=tenant_id,
+        )
+
+        return {"answer": response, "output_message": response, "agent_type": "finance"}

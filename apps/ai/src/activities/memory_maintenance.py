@@ -11,11 +11,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
+import temporalio.activity as activity
+
 from ..memory.qdrant_ops import QdrantMemoryManager
 
 logger = logging.getLogger(__name__)
 
 
+@activity.defn(name="decay_memory_weights")
 async def decay_memory_weights(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Apply weight decay to memory entries.
@@ -50,6 +53,7 @@ async def decay_memory_weights(params: Dict[str, Any]) -> Dict[str, Any]:
         await memory_manager.close()
 
 
+@activity.defn(name="expire_old_memories")
 async def expire_old_memories(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Remove memories that have exceeded their expiration time.
@@ -80,6 +84,7 @@ async def expire_old_memories(params: Dict[str, Any]) -> Dict[str, Any]:
         await memory_manager.close()
 
 
+@activity.defn(name="optimize_memory_performance")
 async def optimize_memory_performance(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Perform performance optimizations on memory collections.

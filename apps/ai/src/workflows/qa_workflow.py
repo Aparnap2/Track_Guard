@@ -75,8 +75,7 @@ class QAWorkflow:
         try:
             qa_result = await workflow.execute_activity(
                 run_qa_agent,
-                tenant_id,
-                question,
+                args=[tenant_id, question],
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=10),
                 heartbeat_timeout=timedelta(minutes=2),
@@ -118,8 +117,7 @@ class QAWorkflow:
 
             slack_result = await workflow.execute_activity(
                 send_slack_message,
-                answer,
-                blocks=slack_blocks if slack_blocks else None,
+                args=[answer, slack_blocks] if slack_blocks else [answer],
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=2),
             )

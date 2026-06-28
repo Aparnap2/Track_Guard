@@ -13,7 +13,7 @@ import (
 
 func TestCommandCenter_ServesPage(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/command", h.CommandCenter)
 
 	req := httptest.NewRequest("GET", "/command", nil)
@@ -37,7 +37,7 @@ func TestCommandCenter_ServesPage(t *testing.T) {
 
 func TestCommandKPIs_ReturnsHTMXPartial(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/kpis", h.APICommandKPIs)
 
 	req := httptest.NewRequest("GET", "/api/command/kpis", nil)
@@ -62,7 +62,7 @@ func TestCommandKPIs_ReturnsHTMXPartial(t *testing.T) {
 
 func TestCommandStatus_ReturnsStatusBar(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/status", h.APICommandStatus)
 
 	req := httptest.NewRequest("GET", "/api/command/status", nil)
@@ -75,7 +75,7 @@ func TestCommandStatus_ReturnsStatusBar(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
 
-	checks := []string{"Mission health", "Risk level", "Last sync"}
+	checks := []string{"Overall Health", "Risk level", "Last sync"}
 	for _, check := range checks {
 		if !strings.Contains(bodyStr, check) {
 			t.Errorf("FAIL: Expected '%s' in response, got: %q", check, bodyStr)
@@ -85,7 +85,7 @@ func TestCommandStatus_ReturnsStatusBar(t *testing.T) {
 
 func TestCommandStatus_WithoutHXRequest(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/status", h.APICommandStatus)
 
 	req := httptest.NewRequest("GET", "/api/command/status", nil)
@@ -106,7 +106,7 @@ func TestCommandStatus_WithoutHXRequest(t *testing.T) {
 
 func TestCommandMissionState_ReturnsBoard(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/mission-state", h.APICommandMissionState)
 
 	req := httptest.NewRequest("GET", "/api/command/mission-state", nil)
@@ -119,7 +119,7 @@ func TestCommandMissionState_ReturnsBoard(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
 
-	checks := []string{"MissionState board", "Finance", "BI", "Ops", "AUTO-COMPILED"}
+	checks := []string{"Mission Status", "F", "B", "O", "Auto-updated"}
 	for _, check := range checks {
 		if !strings.Contains(bodyStr, check) {
 			t.Errorf("FAIL: Expected '%s' in response, got: %q", check, bodyStr)
@@ -131,7 +131,7 @@ func TestCommandMissionState_ReturnsBoard(t *testing.T) {
 
 func TestCommandWatchlist_ReturnsItems(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/watchlist", h.APICommandWatchlist)
 
 	req := httptest.NewRequest("GET", "/api/command/watchlist", nil)
@@ -151,7 +151,7 @@ func TestCommandWatchlist_ReturnsItems(t *testing.T) {
 		}
 	}
 
-	severityChecks := []string{"high", "med", "low"}
+	severityChecks := []string{"High", "Med", "Low"}
 	for _, check := range severityChecks {
 		if !strings.Contains(bodyStr, check) {
 			t.Errorf("FAIL: Expected severity label '%s' in response, got: %q", check, bodyStr)
@@ -163,7 +163,7 @@ func TestCommandWatchlist_ReturnsItems(t *testing.T) {
 
 func TestCommandAgentFleet_ReturnsAgents(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/agent-fleet", h.APICommandAgentFleet)
 
 	req := httptest.NewRequest("GET", "/api/command/agent-fleet", nil)
@@ -188,7 +188,7 @@ func TestCommandAgentFleet_ReturnsAgents(t *testing.T) {
 
 func TestCommandTimeline_ReturnsEvents(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/timeline", h.APICommandTimeline)
 
 	req := httptest.NewRequest("GET", "/api/command/timeline", nil)
@@ -213,7 +213,7 @@ func TestCommandTimeline_ReturnsEvents(t *testing.T) {
 
 func TestCommandApprovals_ReturnsPendingItems(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/approvals", h.APICommandApprovals)
 
 	req := httptest.NewRequest("GET", "/api/command/approvals", nil)
@@ -236,7 +236,7 @@ func TestCommandApprovals_ReturnsPendingItems(t *testing.T) {
 
 func TestCommandApprovals_EmptyState(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/approvals", h.APICommandApprovals)
 
 	req := httptest.NewRequest("GET", "/api/command/approvals", nil)
@@ -256,7 +256,7 @@ func TestCommandApprovals_EmptyState(t *testing.T) {
 
 func TestCommandApprovalAction_ReturnsEmptyOnApprove(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Post("/api/command/approvals/:id/:action", h.APICommandApprovalAction)
 
 	req := httptest.NewRequest("POST", "/api/command/approvals/1/approve", nil)
@@ -276,7 +276,7 @@ func TestCommandApprovalAction_ReturnsEmptyOnApprove(t *testing.T) {
 
 func TestCommandApprovalAction_ReturnsEmptyOnHold(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Post("/api/command/approvals/:id/:action", h.APICommandApprovalAction)
 
 	req := httptest.NewRequest("POST", "/api/command/approvals/1/hold", nil)
@@ -294,11 +294,31 @@ func TestCommandApprovalAction_ReturnsEmptyOnHold(t *testing.T) {
 	}
 }
 
+func TestCommandApprovalAction_SignalsTemporalOnApprove(t *testing.T) {
+	app := fiber.New()
+	h := NewHandler(nil, nil) // nil temporal client — should not crash
+	app.Post("/api/command/approvals/:id/:action", h.APICommandApprovalAction)
+
+	req := httptest.NewRequest("POST", "/api/command/approvals/wf-123/approve", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := strings.TrimSpace(string(body))
+
+	if bodyStr != "" {
+		t.Errorf("FAIL: Expected empty body on approve (even with nil temporal), got: %q", bodyStr)
+	}
+}
+
 // ── Metrics ────────────────────────────────────────────────────────────
 
 func TestCommandMetrics_ReturnsMetricsPanel(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/metrics", h.APICommandMetrics)
 
 	req := httptest.NewRequest("GET", "/api/command/metrics", nil)
@@ -330,7 +350,7 @@ func TestCommandMetrics_ReturnsMetricsPanel(t *testing.T) {
 
 func TestCommandChartData_ReturnsJSON(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Get("/api/command/chart-data", h.APICommandChartData)
 
 	req := httptest.NewRequest("GET", "/api/command/chart-data", nil)
@@ -359,7 +379,7 @@ func TestCommandChartData_ReturnsJSON(t *testing.T) {
 
 func TestCommandChatSend_ReturnsEmpty(t *testing.T) {
 	app := fiber.New()
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	app.Post("/api/command/chat/send", h.APICommandChatSend)
 
 	bodyPayload := "message=Hello&mention=@all"
@@ -376,5 +396,78 @@ func TestCommandChatSend_ReturnsEmpty(t *testing.T) {
 
 	if bodyStr != "" {
 		t.Errorf("FAIL: Expected empty body, got: %q", bodyStr)
+	}
+}
+
+func TestCommandChatSend_ReturnsEmptyWithDBNoTemporal(t *testing.T) {
+	// Regression: chat send with @agent mention should not panic when temporal is nil
+	app := fiber.New()
+	h := NewHandler(nil, nil)
+	app.Post("/api/command/chat/send", h.APICommandChatSend)
+
+	bodyPayload := "message=What+is+the+status%3F&mention=@sarthi"
+	req := httptest.NewRequest("POST", "/api/command/chat/send", strings.NewReader(bodyPayload))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := strings.TrimSpace(string(body))
+
+	// Without DB + temporal: should return empty without error
+	if bodyStr != "" {
+		t.Errorf("FAIL: Expected empty body, got: %q", bodyStr)
+	}
+}
+
+// ── Mission State Update ────────────────────────────────────────────
+
+func TestCommandMissionStateUpdate_PersistsData(t *testing.T) {
+	app := fiber.New()
+	h := NewHandler(nil, nil)
+	app.Post("/api/command/mission-state/update", h.APICommandMissionStateUpdate)
+
+	body := `{"tenant_id":"default","mrr":150000,"burn_rate":45000,"runway_days":24,"trust_score":78}`
+	req := httptest.NewRequest("POST", "/api/command/mission-state/update",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("HX-Request", "true")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	bodyStr := string(respBody)
+	if bodyStr == "" {
+		t.Errorf("FAIL: Expected non-empty mission state HTML, got empty")
+	}
+
+	checks := []string{"Mission Status", "F", "B", "O", "Auto-updated"}
+	for _, check := range checks {
+		if !strings.Contains(bodyStr, check) {
+			t.Errorf("FAIL: Expected '%s' in response, got: %q", check, bodyStr)
+		}
+	}
+}
+
+func TestCommandMissionStateUpdate_NoDBNotCrash(t *testing.T) {
+	app := fiber.New()
+	h := NewHandler(nil, nil)
+	app.Post("/api/command/mission-state/update", h.APICommandMissionStateUpdate)
+
+	body := `{"tenant_id":"default","mrr":150000}`
+	req := httptest.NewRequest("POST", "/api/command/mission-state/update",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("FAIL: Expected 200, got %d", resp.StatusCode)
 	}
 }

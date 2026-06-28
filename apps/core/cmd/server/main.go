@@ -185,7 +185,7 @@ func main() {
 	debugHandler.RegisterRoutes(app)
 
 	// Web routes (HTMX Admin Dashboard) - require auth
-	webHandler := web.NewHandler(pgDB)
+	webHandler := web.NewHandler(pgDB, temporalClient)
 	webHandler.RegisterRoutes(app)
 	webHandler.RegisterAdminRoutes(app)
 

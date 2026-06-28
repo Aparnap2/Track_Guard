@@ -1,7 +1,22 @@
-<div class="flex items-center gap-4 p-3 bg-white rounded-xl shadow-sm">
-    <div><span class="text-xs text-gray-500">Mission health</span><span class="ml-2 font-semibold">{{.Health}}%</span></div>
-    <div><span class="text-xs text-gray-500">Risk level</span><span class="ml-2 font-semibold">{{.RiskLevel}}</span></div>
-    <div><span class="text-xs text-gray-500">Blindspots</span><span class="ml-2 font-semibold">{{.Blindspots}}</span></div>
-    <div><span class="text-xs text-gray-500">Approvals</span><span class="ml-2 font-semibold">{{.Approvals}}</span></div>
-    <div><span class="text-xs text-gray-500">Last sync</span><span class="ml-2 font-mono text-xs">{{.LastSync}}</span></div>
+<div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm fade-in">
+    <div class="flex items-center gap-2">
+        <span style="color:var(--text-muted)" class="text-xs">Overall Health</span>
+        <span class="font-semibold tabular-nums {{if le .Health 50}}text-red-400{{else if le .Health 75}}text-yellow-400{{else}}text-green-400{{end}}">{{.Health}}%</span>
+    </div>
+    <div class="flex items-center gap-2">
+        <span style="color:var(--text-muted)" class="text-xs">Risk level</span>
+        <span class="font-semibold px-1.5 py-0.5 rounded text-[11px] {{if eq .RiskLevel "HIGH"}}bg-red-900/30 text-red-400{{else if eq .RiskLevel "MEDIUM"}}bg-yellow-900/30 text-yellow-400{{else}}bg-green-900/30 text-green-400{{end}}">{{.RiskLevel}}</span>
+    </div>
+    <div class="flex items-center gap-2">
+        <span style="color:var(--text-muted)" class="text-xs">Watch Items</span>
+        <span class="font-semibold tabular-nums {{if ge .Blindspots 5}}text-red-400{{else if ge .Blindspots 3}}text-yellow-400{{else}}text-green-400{{end}}">{{.Blindspots}}</span>
+    </div>
+    <div class="flex items-center gap-2">
+        <span style="color:var(--text-muted)" class="text-xs">Approvals</span>
+        <span class="font-semibold tabular-nums {{if ge .Approvals 3}}text-yellow-400{{else}}text-green-400{{end}}">{{.Approvals}}</span>
+    </div>
+    <div class="flex items-center gap-2 hide-mobile">
+        <span style="color:var(--text-muted)" class="text-xs">Last sync</span>
+        <span class="font-mono text-[11px]" style="color:var(--text-secondary)">{{.LastSync}}</span>
+    </div>
 </div>

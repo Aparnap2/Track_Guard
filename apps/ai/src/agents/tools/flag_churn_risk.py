@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.session.mission_state import get_mission_state, update_mission_state
+
 log = logging.getLogger(__name__)
 
 tool_def: dict[str, Any] = {
@@ -31,8 +33,13 @@ async def execute(tenant_id: str, segment_id: str) -> dict[str, Any]:
     """
     log.info("flag_churn_risk_customer %s/%s — tier=auto",
              tenant_id, segment_id)
-    # TODO: Wire to customer DB update — set churn_risk_flag = true
-    #       on the segment record so dashboard filters pick it up.
+    state = await get_mission_state(tenant_id)
+    existing = state.churn_risk_users or ""
+    if segment_id not in existing:
+        state.churn_risk_users = (existing + "," + segment_id).strip(",")
+        state.last_updated_by = "flag_churn_risk_tool"
+        await update_mission_state(state)
+    log.info({"action": "flag_churn_risk", "segment_id": segment_id})
     return {
         "flagged": True,
         "segment_id": segment_id,

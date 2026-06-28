@@ -164,13 +164,14 @@ async def get_mission_state(tenant_id: str) -> MissionState:
     return MissionState(tenant_id=tenant_id)
 
 
-async def update_mission_state(state: MissionState) -> bool:
+async def update_mission_state(state: MissionState, generate_brief: bool = True) -> bool:
     """Update MissionState in database atomically.
 
     Per PRD Section 11: Updated atomically.
 
     Args:
         state: MissionState to persist
+        generate_brief: Whether to auto-generate prepared_brief if missing
 
     Returns:
         True if successful, False otherwise
@@ -252,6 +253,12 @@ async def update_mission_state(state: MissionState) -> bool:
             state.last_updated_by,
         )
         await conn.close()
+        if generate_brief and not state.prepared_brief:
+            try:
+                from src.session.brief_generator import generate_prepared_brief
+                await generate_prepared_brief(state.tenant_id)
+            except Exception:
+                log.exception("generate_prepared_brief callback failed")
         log.info(f"MissionState updated for tenant: {state.tenant_id}")
         return True
     except Exception as e:
